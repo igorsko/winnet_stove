@@ -23,5 +23,10 @@ This is a custom component for Home Assistant to integrate with WiNET Stove devi
 ## Configuration
 Add the integration from the Home Assistant UI via **Settings** -> **Devices & Services** -> **Add Integration** and search for "WiNET Stove".
 
-## Support
-If you find this integration useful, please consider starring the repository on GitHub.
+## Support the Project
+If you find this integration useful and want to support its development, please consider:
+- Starring the repository on GitHub.
+- [Buying me a coffee](https://www.buymeacoffee.com/igorsko)
+- [Donating via PayPal](https://www.paypal.me/igorskorjanc)
+
+Your support helps me keep maintaining this and other Home Assistant integrations!
