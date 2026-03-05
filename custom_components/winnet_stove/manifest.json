@@ -1,0 +1,10 @@
+{
+  "domain": "winnet_stove",
+  "name": "WiNET Stove",
+  "documentation": "https://github.com/igorcek/winnet_stove",
+  "codeowners": ["@igorcek"],
+  "requirements": ["aiohttp>=3.8.0"],
+  "version": "1.0.0",
+  "config_flow": true,
+  "iot_class": "local_polling"
+}

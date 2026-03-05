@@ -1,0 +1,43 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configura Stufa WiNET",
+        "description": "Inserisci l'indirizzo IP del modulo WiNET della tua stufa.\n\n**Consiglio**: Per una visualizzazione ottimale, installa [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom) da HACS.",
+        "data": {
+          "host": "Indirizzo IP"
+        },
+        "data_description": {
+          "host": "Esempio: 192.168.0.123"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossibile connettersi alla stufa. Verifica l'indirizzo IP e che la stufa sia accesa."
+    },
+    "abort": {
+      "already_configured": "Questa stufa è già configurata"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni WiNET Stufa",
+        "description": "Configura le opzioni avanzate.\n\n💡 **Suggerimento**: Vedi il file README.md per esempi di card con Mushroom.",
+        "data": {
+          "scan_interval": "Intervallo aggiornamento (secondi)"
+        },
+        "data_description": {
+          "scan_interval": "Frequenza di aggiornamento dei dati dalla stufa (minimo 10s, consigliato 30s)"
+        }
+      }
+    }
+  },
+  "system_health": {
+    "info": {
+      "host": "Indirizzo IP",
+      "scan_interval": "Intervallo aggiornamento",
+      "mushroom_installed": "Mushroom Cards installato"
+    }
+  }
+}
