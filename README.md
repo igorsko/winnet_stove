@@ -1,6 +1,6 @@
 # WiNET Stove - Home Assistant Custom Component
 
-This is a custom component for Home Assistant to integrate with WiNET Stove devices.
+This is a custom component for Home Assistant to integrate with WiNET Stove devices. Tested only on Thermorossi Slimquadro 9 Evo.
 
 ## Features
 - Monitoring: View stove status and sensors.
