@@ -52,6 +52,17 @@ class WinetStufaAPI:
                         # Converti in dizionario
                         registers = {num: val for num, val in result["registers"]}
                         
+                        # LIMITA POTENZA SE TEMPERATURA NON LETTA
+                        temp = self.get_temperature(registers)
+                        if temp is None or temp <= 0:
+                            state = self.get_state(registers)
+                            power = self.get_power(registers)
+                            is_on = state not in [0, 1, 8]
+                            if is_on and power > 1:
+                                _LOGGER.warning("Temperatura esterna non letta (%.1f), limito potenza a 1", temp if temp is not None else -99.9)
+                                await self.async_set_register(12, 1)
+                                registers[12] = 1
+                        
                         return {
                             "name": result.get("name", "Stufa"),
                             "rssi": result.get("rssi"),
@@ -149,6 +160,32 @@ class WinetStufaAPI:
         """Spegne la stufa."""
         return await self.async_set_register(1, 42240)
     
+    async def async_set_power(self, power: int) -> bool:
+        """Imposta la potenza della stufa (1-5)."""
+        if not 1 <= power <= 5:
+            _LOGGER.error("Potenza non valida: %d", power)
+            return False
+        _LOGGER.info("Impostazione potenza a %d...", power)
+        result = await self.async_set_register(12, power)
+        if result:
+            _LOGGER.info("Potenza impostata con successo a %d", power)
+        else:
+            _LOGGER.error("Errore impostazione potenza")
+        return result
+    
+    async def async_set_fan_speed(self, speed: int) -> bool:
+        """Imposta la velocità ventilazione (0=auto, 1-5)."""
+        if not 0 <= speed <= 5:
+            _LOGGER.error("Velocità ventilazione non valida: %d", speed)
+            return False
+        _LOGGER.info("Impostazione ventilazione a %d...", speed)
+        result = await self.async_set_register(13, speed)
+        if result:
+            _LOGGER.info("Ventilazione impostata con successo a %d", speed)
+        else:
+            _LOGGER.error("Errore impostazione ventilazione")
+        return result
+
     async def async_set_crono_on(self) -> bool:
         """Attiva il crono (programmazione oraria).
         Scrive valore 3 nel registro 7.
