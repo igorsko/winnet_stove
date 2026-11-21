@@ -1,7 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-only
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
-import aiohttp
 
 from .const import DOMAIN, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 from .api import WinetStufaAPI
@@ -20,7 +20,11 @@ class WinetStufaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             # Testa la connessione
             api = WinetStufaAPI(host)
-            if await api.async_test_connection():
+            try:
+                connected = await api.async_test_connection()
+            finally:
+                await api.async_close()
+            if connected:
                 # Connessione riuscita
                 await self.async_set_unique_id(host)
                 self._abort_if_unique_id_configured()
@@ -33,7 +37,7 @@ class WinetStufaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
         
         data_schema = vol.Schema({
-            vol.Required(CONF_HOST, default="192.168.2.140"): str,
+            vol.Required(CONF_HOST, default="192.168.1.100"): str,
         })
         
         return self.async_show_form(
@@ -55,7 +59,7 @@ class WinetStufaOptionsFlow(config_entries.OptionsFlow):
     
     def __init__(self, config_entry):
         """Inizializza."""
-        self.config_entry = config_entry
+        self._legacy_entry = config_entry
     
     async def async_step_init(self, user_input=None):
         """Gestisce le opzioni."""
@@ -67,7 +71,7 @@ class WinetStufaOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema({
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
-                    default=self.config_entry.options.get(
+                    default=self._legacy_entry.options.get(
                         CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                     )
                 ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300))

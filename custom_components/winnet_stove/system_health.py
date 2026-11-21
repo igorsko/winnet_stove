@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # ============================================================================
 # FILE: custom_components/winet_stufa/system_health.py
 # Mostra informazioni nell'area System Health di Home Assistant
@@ -26,7 +27,7 @@ async def system_health_info(hass: HomeAssistant):
     mushroom_installed = await check_mushroom_installed(hass)
     
     info = {
-        "integration_version": "1.0.0",
+        "integration_version": "1.0.1",
         "configured_stoves": entry_count,
         "mushroom_cards": "✅ Installato" if mushroom_installed else "⚠️ Non rilevato (consigliato per card ottimizzate)",
     }

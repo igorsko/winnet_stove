@@ -1,81 +1,66 @@
-# ============================================================================
-# FILE: custom_components/winet_stufa/__init__.py
-# ============================================================================
+# SPDX-License-Identifier: GPL-3.0-only
+"""WiNET Stove integration."""
 
-import asyncio
 import logging
 from datetime import timedelta
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.const import Platform
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DOMAIN, CONF_HOST, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
 from .api import WinetStufaAPI
+from .const import DOMAIN, CONF_HOST, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
-
 PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Configura l'integrazione da config entry."""
+    """Set up WiNET Stove."""
     host = entry.data[CONF_HOST]
-    scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-    
-    _LOGGER.info(f"Setup WiNET Stufa - Host: {host}, Scan: {scan_interval}s")
-    
-    # Crea l'API
+    interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     api = WinetStufaAPI(host)
-    
-    # Testa la connessione
-    if not await api.async_test_connection():
-        _LOGGER.error("Impossibile connettersi alla stufa su %s", host)
-        return False
-    
-    _LOGGER.info("Connessione alla stufa riuscita")
-    
-    # Crea il coordinator QUI - prima di caricare le piattaforme
+
+    async def async_update_data():
+        try:
+            return await api.async_get_data()
+        except Exception as err:
+            raise UpdateFailed(f"Unable to read WiNET stove: {err}") from err
+
     coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
-        name="winet_stufa_data",
-        update_method=api.async_get_data,
-        update_interval=timedelta(seconds=scan_interval),
+        name="winnet_stove_data",
+        update_method=async_update_data,
+        update_interval=timedelta(seconds=interval),
     )
-    
-    # Primo aggiornamento per popolare i dati
-    await coordinator.async_config_entry_first_refresh()
-    _LOGGER.info("Primo aggiornamento dati completato")
-    
-    # Salva API e coordinator nell'hass data
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
-        "api": api,
-        "coordinator": coordinator,  # Salvato QUI, disponibile per tutti
-        "scan_interval": scan_interval
-    }
-    
-    _LOGGER.info(f"Coordinator salvato in hass.data[{DOMAIN}][{entry.entry_id}]")
-    
-    # Setup delle piattaforme - ora il coordinator è già pronto
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
-    _LOGGER.info("Setup completato - piattaforme caricate")
-    
+    try:
+        await coordinator.async_config_entry_first_refresh()
+        hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+            "api": api,
+            "coordinator": coordinator,
+            "scan_interval": interval,
+        }
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    except Exception:
+        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        await api.async_close()
+        raise
+    entry.async_on_unload(entry.add_update_listener(async_update_options))
     return True
 
+
+async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload when polling settings change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Scarica l'integrazione."""
-    _LOGGER.info("Unload WiNET Stufa")
-    
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    
-    if unload_ok:
-        # Chiude la sessione API
-        api = hass.data[DOMAIN][entry.entry_id]["api"]
-        await api.async_close()
-        
-        hass.data[DOMAIN].pop(entry.entry_id)
-        _LOGGER.info("Integrazione scaricata correttamente")
-    
-    return unload_ok
+    """Unload the integration and close its HTTP client."""
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        if data:
+            await data["api"].async_close()
+    return unloaded

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # ============================================================================
 # FILE: custom_components/winet_stufa/climate.py
 # VERSIONE CORRETTA - Usa coordinator creato in __init__.py
@@ -15,6 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 import logging
+from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN, STOVE_STATES
 
@@ -55,7 +57,7 @@ class WinetStufaClimate(CoordinatorEntity, ClimateEntity):
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": "Stufa WiNET",
-            "manufacturer": "Micronova/Thermorossi",
+            "manufacturer": "WiNET",
             "model": "WiNET",
         }
     
@@ -74,10 +76,12 @@ class WinetStufaClimate(CoordinatorEntity, ClimateEntity):
         if self.coordinator.data and "registers" in self.coordinator.data:
             state = self._api.get_state(self.coordinator.data["registers"])
             _LOGGER.debug(f"Stove state: {state} -> {STOVE_STATES.get(state)}")
+            if state is None:
+                return None
             if state in [0, 1, 8]:  # Off, off, stop
                 return HVACMode.OFF
             return HVACMode.HEAT
-        return HVACMode.OFF
+        return None
     
     @property
     def hvac_action(self):
@@ -88,7 +92,7 @@ class WinetStufaClimate(CoordinatorEntity, ClimateEntity):
                 return HVACAction.HEATING
             elif state in [2, 4, 5, 6, 7, 9]:  # Starting, waiting, etc
                 return HVACAction.IDLE
-        return HVACAction.OFF
+        return HVACAction.OFF if self.coordinator.last_update_success else None
     
     @property
     def extra_state_attributes(self):
@@ -128,7 +132,7 @@ class WinetStufaClimate(CoordinatorEntity, ClimateEntity):
             "power_level": power,
             "fan_speed": fan,
             "rssi": rssi,
-            "is_on": state_code not in [0, 1, 8],
+            "is_on": (state_code not in [0, 1, 8]) if state_code is not None else None,
             "alarm_code": alarm_code,
             "has_alarm": alarm_code != 0,
         }
@@ -139,11 +143,6 @@ class WinetStufaClimate(CoordinatorEntity, ClimateEntity):
             if alarms:
                 attributes["alarm_description"] = alarms[0]["description"]
                 attributes["alarm_count"] = len(alarms)
-        
-        # DEBUG: Aggiungi TUTTI i registri grezzi come attributi
-        # TODO: Rimuovere dopo aver identificato il registro crono
-        for reg_num, reg_value in registers.items():
-            attributes[f"register_{reg_num}"] = reg_value
         
         return attributes
     
@@ -158,5 +157,6 @@ class WinetStufaClimate(CoordinatorEntity, ClimateEntity):
             success = await self._api.async_turn_off()
             _LOGGER.info(f"Turn OFF result: {success}")
         
-        # Forza aggiornamento immediato
+        if not success:
+            raise HomeAssistantError("WiNET stove rejected the power command")
         await self.coordinator.async_request_refresh()
