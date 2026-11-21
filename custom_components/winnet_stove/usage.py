@@ -31,6 +31,9 @@ class StoveUsage:
         self._store = Store(hass, 1, f"{DOMAIN}_{entry_id}_usage")
         self._max_gap = 2 * scan_interval + 10
         self._subscribers = set()
+        self.last_success_at = None
+        self.communication_failures = 0
+        self.consecutive_failures = 0
         self.refills = []
         self._legacy_bags = 0
         self.working_by_day = {}
@@ -60,6 +63,17 @@ class StoveUsage:
     async def async_load(self):
         """Restore totals without assuming an ongoing prior session."""
         data = await self._store.async_load() or {}
+        try:
+            stamp = data.get("last_success_at")
+            if stamp:
+                parsed = datetime.fromisoformat(stamp)
+                if parsed.tzinfo:
+                    self.last_success_at = parsed
+            self.communication_failures = max(
+                0, int(data.get("communication_failures", 0))
+            )
+        except (TypeError, ValueError):
+            _LOGGER.warning("Invalid WiNET diagnostics persisted data")
         self.auto_refill_enabled = data.get('auto_refill_enabled') is True
         self._auto_detector = AutoRefillDetector.restore(data.get('auto_refill_detector'))
         try:
@@ -162,6 +176,8 @@ class StoveUsage:
             "auto_bags_loaded": self.auto_bags_loaded,
             "last_auto_refill": self.last_auto_refill,
             "operating_seconds": self.tracker.operating_seconds,
+            "last_success_at": self.last_success_at.isoformat() if self.last_success_at else None,
+            "communication_failures": self.communication_failures,
             "last_ignition": self.tracker.last_ignition.isoformat()
             if self.tracker.last_ignition
             else None,
@@ -177,15 +193,26 @@ class StoveUsage:
     def async_update(self, coordinator):
         """Observe a coordinator result, excluding unavailable samples."""
         if not coordinator.last_update_success or not coordinator.data:
+            self.communication_failures += 1
+            self.consecutive_failures += 1
+            self._store.async_delay_save(self._snapshot, 60)
+            self._notify()
             self.tracker.interrupt()
             self._previous_working_power = None
             self._auto_detector.observe(None, None)
             return
         state = coordinator.data.get("registers", {}).get(6)
         if not isinstance(state, int):
+            self.communication_failures += 1
+            self.consecutive_failures += 1
+            self._store.async_delay_save(self._snapshot, 60)
+            self._notify()
             self.tracker.interrupt()
             self._auto_detector.observe(None, None)
             return
+        recovered = self.consecutive_failures > 0
+        self.consecutive_failures = 0
+        self.last_success_at = datetime.now(timezone.utc)
         previous_operating = self.tracker.operating_seconds
         changed = self.tracker.observe(
             state & 0xFF, monotonic(), datetime.now(timezone.utc), self._max_gap
@@ -239,10 +266,13 @@ class StoveUsage:
             changed = True
             self._notify_maintenance()
         self._previous_working_power = registers.get(12) if state & 0xFF == 3 else None
-        if changed:
+        if changed or recovered:
             self._store.async_delay_save(self._snapshot, 60)
             for listener in tuple(self._subscribers):
                 listener()
+        else:
+            # Refresh the connection-health entity without storing every poll.
+            self._notify()
 
     def pellet_statistics(self):
         """Derived estimates, with explicit provenance of the kg/h rate."""

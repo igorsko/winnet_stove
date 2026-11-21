@@ -59,6 +59,7 @@ async def async_setup_entry(
                      "power_profile", "maintenance_burner",
                      "maintenance_deep_clean", "maintenance_annual_service")
     ])
+    sensors.append(StoveConnectionDiagnosticsSensor(hass.data[DOMAIN][entry.entry_id]["usage"], entry))
     async_add_entities(sensors)
     _LOGGER.info(f"Creati {len(sensors)} sensori")
 
@@ -612,3 +613,33 @@ class StoveInsightsSensor(SensorEntity):
         if self._kind == "month_cost":
             return {"daily_history": self._usage.daily_statistics()["days"][-31:]}
         return None
+
+class StoveConnectionDiagnosticsSensor(SensorEntity):
+    """Report connectivity separately from stove operating state."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Connection diagnostics"
+    _attr_icon = "mdi:lan"
+
+    def __init__(self, usage, entry):
+        self._usage = usage
+        self._attr_unique_id = f"{entry.entry_id}_diagnostics_connection"
+        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self.async_on_remove(self._usage.async_subscribe(self.async_write_ha_state))
+
+    @property
+    def native_value(self):
+        return "Connected" if self._usage.consecutive_failures == 0 and self._usage.last_success_at else "Unavailable"
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "last_valid_response": self._usage.last_success_at.isoformat()
+            if self._usage.last_success_at else None,
+            "consecutive_errors": self._usage.consecutive_failures,
+            "total_communication_errors": self._usage.communication_failures,
+            "stove_power_state_not_inferred_when_offline": True,
+        }

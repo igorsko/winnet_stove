@@ -133,6 +133,20 @@ maintenance intervals. Tap **Completed** after performing a task; a confirmation
 required and the corresponding timer restarts. A Home Assistant persistent notification
 is created once per maintenance cycle when overdue.
 
+## Diagnostics and backups
+
+The dedicated panel's **Settings** tab provides **Connection diagnostics**:
+last valid controller response, current consecutive communication failures and
+accumulated errors. A lost WiNET connection is not interpreted as the stove
+switching off, and unavailable periods are excluded from combustion accounting.
+
+The plugin saves its measurements, counter corrections, refill history and
+maintenance state to Home Assistant's local `.storage` area. To restore these
+values after a server failure, use a **Home Assistant configuration backup**
+containing `.storage`. Back up before installing updates; restoring a backup
+rolls back subsequent records. The plugin does not silently delete existing
+data or generate a fake history.
+
 ## Counter correction and migration
 
 The **Settings** tab includes a confirmed **Reset legacy bag counter** action.

@@ -192,6 +192,8 @@ class WinetStovePanel extends HTMLElement {
           </section>
           <section class="tab-content" ${this._activeTab !== "settings" ? "hidden" : ""}>
             <h3>Pellet and maintenance settings</h3>
+            <p class="hint"><strong>Connection:</strong> ${m.diagnostics_connection ? this.format(m.diagnostics_connection) : "—"} (tap to see error counts)</p>
+            <button class="secondary" data-info="${this.escape(m.diagnostics_connection || "")}">Connection details</button>
             <p class="hint">Tap an item to modify it. Changes affect only Home Assistant accounting. Reported power rates are optional: zero means unconfigured. Values must be calibrated for your stove.</p>
             <div class="settings">${pelletSettings}</div>
             <div class="controls">
