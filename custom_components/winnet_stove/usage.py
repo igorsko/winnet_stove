@@ -34,6 +34,7 @@ class StoveUsage:
         self.auto_refill_enabled = False
         self.auto_bags_loaded = 0
         self.last_auto_refill = None
+        self._legacy_last_auto_refill = None
         self.pellet = {
             'initial_hours': 0.0,
             'bag_weight_kg': 15.0,
@@ -55,6 +56,9 @@ class StoveUsage:
             self.auto_bags_loaded = 0
             self.last_auto_refill = None
         self.refills = validate_events(data.get('refills', []))
+        self._legacy_last_auto_refill = data.get(
+            "legacy_last_auto_refill", self.last_auto_refill
+        )
         for name in self.pellet:
             if name in data:
                 try:
@@ -87,6 +91,7 @@ class StoveUsage:
             "refills": self.refills,
             "legacy_bags": self._legacy_bags,
             "legacy_auto_bags": self._legacy_auto_bags,
+            "legacy_last_auto_refill": self._legacy_last_auto_refill,
             "auto_refill_enabled": self.auto_refill_enabled,
             "auto_refill_detector": self._auto_detector.snapshot(),
             "auto_bags_loaded": self.auto_bags_loaded,
@@ -175,6 +180,11 @@ class StoveUsage:
             self._legacy_auto_bags
             + sum(event["source"] == "auto" for event in self.refills)
         )
+        last_auto = next(
+            (e["at"] for e in reversed(self.refills) if e["source"] == "auto"),
+            None,
+        )
+        self.last_auto_refill = last_auto or self._legacy_last_auto_refill
 
     def refill_statistics(self):
         """Accessible to the frontend via the refill log entity."""

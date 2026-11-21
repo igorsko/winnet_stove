@@ -258,7 +258,9 @@ class WinetStovePanel extends HTMLElement {
           entry: button.dataset.entry,
           id: button.dataset.refillEdit,
           quantity: button.dataset.kg,
-          weight: "15",
+          weight: this._hass.states?.[
+            stoves.find(s => s.entry_id === button.dataset.entry)?.entities?.pellet_setting_bag_weight_kg
+          ]?.state || "15",
           unit: "kg"
         }));
       });

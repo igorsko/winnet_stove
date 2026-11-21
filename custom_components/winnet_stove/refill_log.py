@@ -17,8 +17,8 @@ def valid_kg(value: object) -> float:
         kg = float(value)
     except (ValueError, TypeError, OverflowError) as err:
         raise ValueError("Quantity must be a number") from err
-    if not isfinite(kg) or not 0 < kg <= MAX_KG:
-        raise ValueError("Quantity must be between 0 and 500 kg")
+    if not isfinite(kg) or not 0.001 <= kg <= MAX_KG:
+        raise ValueError("Quantity must be between 0.001 and 500 kg")
     return round(kg, 3)
 
 
