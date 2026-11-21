@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # ============================================================================
 # FILE: custom_components/winet_stufa/switch.py
 # ============================================================================
@@ -8,6 +9,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 import logging
+import asyncio
+from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN
 
@@ -47,7 +50,7 @@ class WinetStufaCronoSwitch(CoordinatorEntity, SwitchEntity):
         if self.coordinator.data and "registers" in self.coordinator.data:
             registers = self.coordinator.data["registers"]
             return self._api.get_crono_state(registers)
-        return False
+        return None
     
     @property
     def icon(self):
@@ -81,7 +84,7 @@ class WinetStufaCronoSwitch(CoordinatorEntity, SwitchEntity):
             await asyncio.sleep(2)  # Aspetta che la stufa applichi il cambiamento
             await self.coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Switch: Errore attivazione crono")
+            raise HomeAssistantError("WiNET stove rejected cron enable")
     
     async def async_turn_off(self, **kwargs):
         """Disattiva il crono."""
@@ -94,7 +97,7 @@ class WinetStufaCronoSwitch(CoordinatorEntity, SwitchEntity):
             await asyncio.sleep(2)
             await self.coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Switch: Errore disattivazione crono")
+            raise HomeAssistantError("WiNET stove rejected cron disable")
 
 # Importa asyncio per il sleep
 import asyncio

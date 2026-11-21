@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # ============================================================================
 # FILE: custom_components/winet_stufa/sensor.py
 # VERSIONE CORRETTA - Sensori che leggono dagli attributi del climate
@@ -94,7 +95,7 @@ class WinetStufaStateSensor(WinetStufaBaseSensor):
             
             _LOGGER.debug(f"Sensor state: code={state}, name={state_name}")
             return state_names_it.get(state_name, state_name)
-        return "Non Disponibile"
+        return None
     
     @property
     def available(self):
@@ -201,7 +202,7 @@ class WinetStufaAlarmSensor(WinetStufaBaseSensor):
     def native_value(self):
         """Valore del sensore - sempre disponibile."""
         if not self.coordinator.data or "registers" not in self.coordinator.data:
-            return "Connessione persa"
+            return None
         
         alarm_code = self._api.get_alarm_code(self.coordinator.data["registers"])
         
@@ -220,7 +221,7 @@ class WinetStufaAlarmSensor(WinetStufaBaseSensor):
     @property
     def available(self):
         """Sensore sempre disponibile - mostra anche errori di connessione."""
-        return True  # Sempre disponibile, mostra "Connessione persa" se offline
+        return self.coordinator.last_update_success
     
     @property
     def icon(self):
@@ -326,7 +327,7 @@ class WinetStufaCronoSensor(WinetStufaBaseSensor):
             else:
                 return "Disattivo"
         
-        return "Disattivo"
+        return None
     
     @property
     def icon(self):

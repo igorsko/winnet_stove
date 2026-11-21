@@ -1,10 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-only
 # ============================================================================
 # FILE: custom_components/winet_stufa/api.py
 # VERSIONE con controllo crono
 # ============================================================================
 
 import aiohttp
-import asyncio
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,30 +38,31 @@ class WinetStufaAPI:
             return False
     
     async def async_get_data(self) -> dict:
-        """Legge tutti i dati dalla stufa."""
-        url = f"{self.base_url}/get-registers"
-        data = "key=020&category=1"
-        
+        """Read data and propagate errors to the Home Assistant coordinator."""
+        session = await self.async_get_session()
         try:
-            session = await self.async_get_session()
-            async with session.post(url, data=data, timeout=10) as resp:
-                if resp.status == 200:
-                    result = await resp.json()
-                    
-                    if "registers" in result:
-                        # Converti in dizionario
-                        registers = {num: val for num, val in result["registers"]}
-                        
-                        return {
-                            "name": result.get("name", "Stufa"),
-                            "rssi": result.get("rssi"),
-                            "registers": registers
-                        }
-            return None
-        except Exception as e:
-            _LOGGER.error("Errore lettura dati: %s", e)
-            return None
-    
+            async with session.post(
+                f"{self.base_url}/get-registers",
+                data="key=020&category=1",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as response:
+                response.raise_for_status()
+                payload = await response.json()
+            pairs = payload.get("registers")
+            if not isinstance(pairs, list):
+                raise ValueError("Invalid WiNET registers response")
+            registers = {int(key): int(value) for key, value in pairs}
+            if 6 not in registers:
+                raise ValueError("WiNET state register 6 is missing")
+            return {
+                "name": payload.get("name", "Stufa"),
+                "rssi": payload.get("rssi"),
+                "registers": registers,
+            }
+        except (aiohttp.ClientError, TimeoutError, ValueError, TypeError) as err:
+            _LOGGER.warning("WiNET communication error: %s", err)
+            raise
+
     def get_temperature(self, registers: dict) -> float:
         """Calcola la temperatura dal registro 16.
         Formula: (registro ÷ 4) - 18
@@ -79,7 +80,7 @@ class WinetStufaAPI:
         """Ottiene lo stato della stufa (registro 6)."""
         if 6 in registers:
             return registers[6] & 0xFF
-        return 0
+        return None
     
     def get_power(self, registers: dict) -> int:
         """Ottiene la potenza (registro 12)."""

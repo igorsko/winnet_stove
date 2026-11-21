@@ -1,4 +1,5 @@
-DOMAIN = "winet_stufa"
+# SPDX-License-Identifier: GPL-3.0-only
+DOMAIN = "winnet_stove"
 CONF_HOST = "host"
 CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_SCAN_INTERVAL = 30
