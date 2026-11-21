@@ -8,18 +8,11 @@ Already have a pellet stove with a **WiNET Wi-Fi module**? **WiNET Stove** helps
 
 With WiNET Stove you can check whether your stove is running, see its reported temperature and operating status, view alarms, and turn it on or off using Home Assistant. It is designed for people who want a simpler, more connected heating experience, while keeping the stove's built-in controls and safety systems in charge.
 
-### Could it work with my stove?
+### Supported stove
 
-**WiNET is a controller/module, not a stove brand.** WiNET modules are documented or sold for selected pellet stove models from brands including:
+WiNET Stove is currently developed and tested **only with the Thermorossi Slimquadro 9 Evo**. Other manufacturers may use WiNET-branded hardware, but that does **not** make their stoves compatible with this integration. Register layouts and commands can differ between controllers and firmware.
 
-- **Thermorossi** — **Slimquadro 9 Evo** is the model used to develop and test this integration.
-- **La Nordica / Extraflame**, **Edilkamin**, **Cadel**, **Klover** and **Piazzetta** — WiNET module suppliers list selected stove models as compatible with the module. This does not mean those stoves already have WiNET installed; check your specific model and Wi-Fi accessory.
-
-Sources for WiNET module/model listings: [WiFi-Stufe compatibility catalogue](https://www.wifi-stufe.com/compatibilita) and [StufaSmart's manufacturer list](https://stufasmart.it/marchi-e-stufe-combatibili/).
-
-> **Important distinction:** these references establish **WiNET module use or compatibility**, **not confirmed compatibility with this Home Assistant integration**. The plugin has been **tested only on Thermorossi Slimquadro 9 Evo**. Different controller firmware, register mappings and commands may require additional work. Do not issue unverified commands to another stove.
-
-**Not sure?** Look for WiNET in the documentation of your stove or its Wi-Fi accessory, and [open an issue](https://github.com/igorsko/winnet_stove/issues) with the **stove brand, model and WiNET controller details** (never share passwords or personal network information). Community testing can help expand the list of verified devices.
+**Other stove brands and models are not supported or maintained by this project.** Please do not assume a different WiNET-equipped stove will work, and do not use unverified commands on other hardware.
 
 ## Features
 
