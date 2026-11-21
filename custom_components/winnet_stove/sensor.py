@@ -44,6 +44,9 @@ async def async_setup_entry(
         WinetStufaAlarmSensor(coordinator, api, entry),
         WinetStufaAlarmCodeSensor(coordinator, api, entry),  # Nuovo: codice allarme numerico
         WinetStufaCronoSensor(coordinator, api, entry),  # Nuovo: stato crono
+        StoveUsageSensor(hass.data[DOMAIN][entry.entry_id]['usage'], entry, 'session'),
+        StoveUsageSensor(hass.data[DOMAIN][entry.entry_id]['usage'], entry, 'last_ignition'),
+        StoveUsageSensor(hass.data[DOMAIN][entry.entry_id]['usage'], entry, 'total'),
     ]
     
     async_add_entities(sensors)
@@ -407,3 +410,40 @@ class WinetStufaDebugSensor(WinetStufaBaseSensor):
             return attrs
         
         return {"error": "No data available"}
+class StoveUsageSensor(SensorEntity):
+    """Persisted usage readings associated with the WiNET device."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, usage, entry, kind):
+        self._usage = usage
+        self._kind = kind
+        self._attr_unique_id = f"{entry.entry_id}_usage_{kind}"
+        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        if kind == "session":
+            self._attr_name = "Current session duration"
+            self._attr_native_unit_of_measurement = "min"
+            self._attr_icon = "mdi:timer-outline"
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif kind == "last_ignition":
+            self._attr_name = "Last ignition"
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
+            self._attr_icon = "mdi:fire"
+        else:
+            self._attr_name = "Total combustion hours"
+            self._attr_native_unit_of_measurement = "h"
+            self._attr_icon = "mdi:timer"
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self.async_on_remove(self._usage.async_subscribe(self.async_write_ha_state))
+
+    @property
+    def native_value(self):
+        tracker = self._usage.tracker
+        if self._kind == "session":
+            return round(tracker.session_seconds / 60, 2)
+        if self._kind == "last_ignition":
+            return tracker.last_ignition
+        return round(tracker.operating_seconds / 3600, 3)

@@ -10,10 +10,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import WinetStufaAPI
+from .usage import StoveUsage
 from .const import DOMAIN, CONF_HOST, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS = [Platform.CLIMATE, Platform.SENSOR, Platform.SWITCH, Platform.BINARY_SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -37,14 +38,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     try:
         await coordinator.async_config_entry_first_refresh()
+        usage = StoveUsage(hass, entry.entry_id, interval)
+        await usage.async_load()
+        unsubscribe = coordinator.async_add_listener(lambda: usage.async_update(coordinator))
+        usage.async_update(coordinator)
         hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
             "api": api,
             "coordinator": coordinator,
             "scan_interval": interval,
+            "usage": usage,
+            "usage_unsubscribe": unsubscribe,
         }
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except Exception:
-        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        if data:
+            data['usage_unsubscribe']()
+            await data['usage'].async_close()
         await api.async_close()
         raise
     entry.async_on_unload(entry.add_update_listener(async_update_options))
@@ -62,5 +72,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unloaded:
         data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
         if data:
+            data["usage_unsubscribe"]()
+            await data["usage"].async_close()
             await data["api"].async_close()
     return unloaded
