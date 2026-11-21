@@ -91,10 +91,12 @@ class StoveUsage:
         """Observe a coordinator result, excluding unavailable samples."""
         if not coordinator.last_update_success or not coordinator.data:
             self.tracker.interrupt()
+            self._auto_detector.observe(None, None)
             return
         state = coordinator.data.get("registers", {}).get(6)
         if not isinstance(state, int):
             self.tracker.interrupt()
+            self._auto_detector.observe(None, None)
             return
         changed = self.tracker.observe(
             state & 0xFF, monotonic(), datetime.now(timezone.utc), self._max_gap

@@ -77,6 +77,12 @@ When more than one WiNET stove is configured, both visibility switches apply to 
 
 **Note:** this implementation uses Home Assistant's dashboard storage APIs, which can change between Home Assistant versions. Test it on your Home Assistant installation before relying on it. If UI registration fails, the stove entities can still operate.
 
+## Automatic pellet refill inference (optional)
+
+WiNET alarm **bit 0** is labelled **NO PELLET / CLEAN BURNER**. It is **not definitive proof** that the hopper is empty. For this reason the **Infer pellet refill after alarm** switch is **disabled by default**. When enabled, WiNET Stove watches for this alarm, an observed off/starting state, a cleared alarm, and **two consecutive working-state polls**. It then records **one presumed pellet bag** using the configured bag weight for any future calculations, and decreases stock by one if positive.
+
+One presumed bag is logged per observed alarm episode; reconnects and normal polls do not generate further bags. Pending alarm state and counters persist across restarts. This operation **never sends a command to the stove**. Cleaning a burner, clearing a pellet blockage, or a partial refill can make the inferred bag count inaccurate. The user can disable the switch or adjust the bag count and stock manually.
+
 ## Pellet and hours accounting
 
 - **Initial stove hours**: enter the pre-existing hours from the stove's display. The separate sensor *Total stove hours incl. initial* adds the confirmed Home Assistant combustion time to that number. Initial hours are not included in pellet estimates.

@@ -78,7 +78,7 @@ def _lovelace_config(entries, entities):
         pellet_controls = [mapping[key] for key in (
             'pellet_setting_initial_hours', 'pellet_setting_bag_weight_kg',
             'pellet_setting_rate_kg_h', 'pellet_setting_bags_in_stock',
-            'pellet_action_load_bag'
+            'pellet_action_load_bag', 'pellet_auto_refill'
         ) if key in mapping]
         if pellet_controls:
             cards.append({'type': 'entities', 'title': 'Pellet management', 'entities': pellet_controls})
