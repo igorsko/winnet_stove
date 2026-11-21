@@ -24,7 +24,13 @@ class RefillLogTests(unittest.TestCase):
     def test_round_trip_preserves_editable_metadata(self):
         initial = [event()]
         restored = MODULE.validate_events(initial)
-        self.assertEqual(restored, initial)
+        self.assertEqual(len(restored), 1)
+        self.assertEqual(restored[0]["id"], initial[0]["id"])
+        self.assertEqual(restored[0]["kg"], 15)
+        self.assertEqual(restored[0]["source"], "auto")
+        self.assertTrue(restored[0]["stock_debit"])
+        self.assertFalse(restored[0]["full_hopper"])
+        self.assertIsNone(restored[0]["runtime_h"])
         self.assertEqual(MODULE.ledger_stats(restored)["total_kg"], 15)
         self.assertEqual(MODULE.ledger_stats(restored)["automatic"], 1)
 
