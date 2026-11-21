@@ -63,9 +63,9 @@ Bug reports, translations, tests and additional verified stove profiles are welc
 
 ## License
 
-Copyright © 2026 igorcek.
+Copyright © 2026 igorsko.
 
-Licensed under the **GNU General Public License version 3 only** (`GPL-3.0-only`); see [LICENSE](LICENSE). Earlier published MIT-licensed versions retain their historical terms.
+Licensed under the **GNU General Public License version 3 only** (`GPL-3.0-only`); see [LICENSE](LICENSE) and [COPYRIGHT](COPYRIGHT). Earlier published MIT-licensed versions retain their historical terms.
 
 ## Support the project
 
