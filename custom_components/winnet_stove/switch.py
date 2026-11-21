@@ -28,7 +28,10 @@ async def async_setup_entry(
     
     _LOGGER.info("Setup Switch - Crono")
     
-    async_add_entities([WinetStufaCronoSwitch(coordinator, api, entry)])
+    async_add_entities([
+        WinetStufaCronoSwitch(coordinator, api, entry),
+        WinetAutoPelletRefillSwitch(data['usage'], entry),
+    ])
 
 class WinetStufaCronoSwitch(CoordinatorEntity, SwitchEntity):
     """Switch per attivare/disattivare il crono."""
@@ -101,3 +104,38 @@ class WinetStufaCronoSwitch(CoordinatorEntity, SwitchEntity):
 
 # Importa asyncio per il sleep
 import asyncio
+class WinetAutoPelletRefillSwitch(SwitchEntity):
+    """Opt-in automatic refill inference based on a stove alarm and recovery."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Infer pellet refill after alarm"
+    _attr_icon = "mdi:bag-checked"
+
+    def __init__(self, usage, entry):
+        self._usage = usage
+        self._attr_unique_id = f"{entry.entry_id}_pellet_auto_refill"
+        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self.async_on_remove(self._usage.async_subscribe(self.async_write_ha_state))
+
+    @property
+    def is_on(self):
+        return self._usage.auto_refill_enabled
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "alarm": "NO PELLET / CLEAN BURNER (bit 0)",
+            "inferred_refills": self._usage.auto_bags_loaded,
+            "last_inferred_refill": self._usage.last_auto_refill,
+            "refill_pending": self._usage._auto_detector.pending,
+            "note": "A refill is inferred, not measured. False positives are possible.",
+        }
+
+    async def async_turn_on(self, **kwargs):
+        await self._usage.async_set_auto_refill(True)
+
+    async def async_turn_off(self, **kwargs):
+        await self._usage.async_set_auto_refill(False)
