@@ -61,6 +61,7 @@ class WinetStovePanel extends HTMLElement {
         ["Bags loaded", m.pellet_bags_loaded],
         ["Estimated pellet used", m.pellet_pellet_used],
         ["Estimated bags used", m.pellet_estimated_bags],
+        ["Auto-refill detection", m.pellet_auto_refill],
         ["Bags per hour", m.pellet_bags_per_hour],
         ["Hours per bag", m.pellet_hours_per_bag]
       ];
