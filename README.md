@@ -33,7 +33,7 @@ Sources for WiNET module/model listings: [WiFi-Stufe compatibility catalogue](ht
 - Communication errors make Home Assistant entities unavailable instead of falsely reporting the stove as off.
 - Register diagnostics remain available separately from the normal climate entity attributes.
 
-**Not yet implemented:** pellet bag inventory, estimated pellet consumption, and maintenance reminders. Counting begins only after the integration is installed. Session and combustion time are conservative estimates based on confirmed samples; offline periods are not inferred. These are planned follow-up enhancements.
+**Not yet implemented:** maintenance reminders. Pellet bag stock, manual loading and consumption estimates are included; estimated consumption is **not measured by the stove**. Counting begins only after the integration is installed. Session and combustion time are conservative estimates based on confirmed samples; offline periods are not inferred. These are planned follow-up enhancements.
 
 ## Requirements
 
@@ -76,6 +76,17 @@ Open **Settings → Devices & services → WiNET Stove → Configure** to change
 When more than one WiNET stove is configured, both visibility switches apply to the shared views: if any configured stove enables a view, the corresponding view is shown. Existing non-WiNET dashboards are never modified. If a user has already created a dashboard with the reserved URL, WiNET Stove will leave it alone. A dashboard previously deleted by the user is not automatically recreated.
 
 **Note:** this implementation uses Home Assistant's dashboard storage APIs, which can change between Home Assistant versions. Test it on your Home Assistant installation before relying on it. If UI registration fails, the stove entities can still operate.
+
+## Pellet and hours accounting
+
+- **Initial stove hours**: enter the pre-existing hours from the stove's display. The separate sensor *Total stove hours incl. initial* adds the confirmed Home Assistant combustion time to that number. Initial hours are not included in pellet estimates.
+- **Bag weight** (default 15 kg): set the weight of your bags.
+- **Estimated burn rate** (kg/h): enter an approximate average for your stove; **default is zero, meaning not configured**. No estimated consumption will be shown until you provide a nonzero rate. Real pellet use varies with power, fuel, ignition and operating conditions.
+- **Bags in stock**: edit the available number of bags, if you want inventory tracking.
+- **Load one pellet bag** button: log one bag loaded into the stove; decrement stock by one when stock is positive. This button does not control or communicate with the stove.
+- Sensors show counted bags loaded, **estimated kg and bags consumed**, **estimated bags/hour**, and **estimated hours/bag** based on confirmed `working` hours. The consumed estimates do **not** count the manual bags as physically burned; they are separate indicators. Historical hours are never treated as consumption observed by Home Assistant.
+
+Data is stored locally by Home Assistant per device and is preserved across restarts. An already-existing editable Lovelace dashboard is intentionally **not overwritten** by updates: add the new entities manually, or create a new dashboard for the full pellet section. The original dashboard generated on a first install includes the pellet controls and sensors.
 
 ## Configuration
 

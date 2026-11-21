@@ -68,13 +68,20 @@ def _lovelace_config(entries, entities):
             cards.append({"type": "thermostat", "entity": climate_id})
         monitored = [
             mapping[key]
-            for key in ("state", "power", "fan", "rssi", "alarm", "alarm_code", "crono")
+            for key in ("state", "power", "fan", "rssi", "alarm", "alarm_code", "crono", "usage_total", "pellet_total_hours", "pellet_bags_loaded", "pellet_pellet_used", "pellet_bags_per_hour", "pellet_hours_per_bag", "pellet_estimated_bags")
             if key in mapping
         ]
         if monitored:
             cards.append({
                 "type": "entities", "title": "Stove status", "entities": monitored
             })
+        pellet_controls = [mapping[key] for key in (
+            'pellet_setting_initial_hours', 'pellet_setting_bag_weight_kg',
+            'pellet_setting_rate_kg_h', 'pellet_setting_bags_in_stock',
+            'pellet_action_load_bag'
+        ) if key in mapping]
+        if pellet_controls:
+            cards.append({'type': 'entities', 'title': 'Pellet management', 'entities': pellet_controls})
         if switch_id := mapping.get("crono_switch"):
             cards.append({
                 "type": "entities", "title": "Timer", "entities": [switch_id]

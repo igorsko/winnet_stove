@@ -25,6 +25,8 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Validate panel JavaScript syntax
         run: node --check custom_components/winnet_stove/frontend/panel.js
+      - name: Test pellet calculations
+        run: python -m unittest discover -s tests -v
       - name: Check manifest, domain, and config flow strings
         run: |
           python - <<'PY'

@@ -56,6 +56,39 @@ class WinetStovePanel extends HTMLElement {
           <button data-climate="${this.escape(climate)}" data-mode="heat" ${mode === "unavailable" || isOn ? "disabled" : ""}>Turn on</button>
           <button data-climate="${this.escape(climate)}" data-mode="off" class="secondary" ${mode === "unavailable" || !isOn ? "disabled" : ""}>Turn off</button>
         </div>` : "";
+      const pelletMetrics = [
+        ["Total stove hours", m.pellet_total_hours],
+        ["Bags loaded", m.pellet_bags_loaded],
+        ["Estimated pellet used", m.pellet_pellet_used],
+        ["Estimated bags used", m.pellet_estimated_bags],
+        ["Bags per hour", m.pellet_bags_per_hour],
+        ["Hours per bag", m.pellet_hours_per_bag]
+      ];
+      const pelletNumbers = [
+        ["Initial hours", m.pellet_setting_initial_hours],
+        ["Bag weight", m.pellet_setting_bag_weight_kg],
+        ["Average consumption", m.pellet_setting_rate_kg_h],
+        ["Bags in stock", m.pellet_setting_bags_in_stock]
+      ];
+      const pelletReadings = pelletMetrics.filter(([_, id]) => id).map(([label, id]) =>
+        `<div class="metric"><span>${this.escape(label)}</span><strong>${this.format(id)}</strong></div>`
+      ).join("");
+      const pelletSettings = pelletNumbers.filter(([_, id]) => id).map(([label, id]) =>
+        `<button class="setting" data-info="${this.escape(id)}">
+          <span>${this.escape(label)}</span><strong>${this.format(id)}</strong>
+        </button>`
+      ).join("");
+      const loadBagButton = m.pellet_action_load_bag
+        ? `<button class="load-bag" data-button="${this.escape(m.pellet_action_load_bag)}">Log one pellet bag loaded</button>`
+        : "";
+      const pelletCard = (pelletReadings || pelletSettings || loadBagButton) ? `
+        <section class="pellet">
+          <h3>Pellet and operating hours</h3>
+          <p class="hint">Consumption is estimated from confirmed operating time and the average kg/h you configure. Loaded bags are logged separately.</p>
+          <div class="metrics">${pelletReadings}</div>
+          <div class="settings">${pelletSettings}</div>
+          <div class="controls">${loadBagButton}</div>
+        </section>` : "";
       const temp = current?.attributes?.current_temperature;
       return `
         <section class="stove">
@@ -66,6 +99,7 @@ class WinetStovePanel extends HTMLElement {
           <div class="temperature"><span>Room temperature</span><strong>${temp == null ? "—" : this.escape(temp) + " °C"}</strong></div>
           <div class="metrics">${rows}</div>
           ${buttons}
+          ${pelletCard}
         </section>`;
     }).join("");
     const html = `
@@ -91,6 +125,14 @@ class WinetStovePanel extends HTMLElement {
         .metric span { font-size: 12px; color: var(--secondary-text-color); }
         .metric strong { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
         .controls { display:flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .pellet { margin-top: 24px; border-top: 1px solid var(--divider-color); padding-top: 18px; }
+        .pellet h3 { font-size: 18px; margin: 0 0 6px; }
+        .hint { font-size: 12px; line-height: 1.6; color: var(--secondary-text-color); margin: 0 0 16px; }
+        .settings { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 10px; margin-top: 14px; }
+        .settings .setting { background: var(--secondary-background-color); color: var(--primary-text-color); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left; }
+        .settings .setting span { color: var(--secondary-text-color); font-size: 12px; }
+        .settings .setting strong { font-size: 17px; }
+        .load-bag { background: var(--primary-color); }
         button { border: none; border-radius: 12px; padding: 13px 20px; color: var(--text-primary-color, white);
           background: var(--primary-color); font: inherit; font-weight: 600; cursor: pointer; }
         button.secondary { background: var(--secondary-background-color); color: var(--primary-text-color); }
@@ -108,6 +150,30 @@ class WinetStovePanel extends HTMLElement {
     if (html !== this._last) {
       this._last = html;
       this.shadowRoot.innerHTML = html;
+      this.shadowRoot.querySelectorAll("button[data-info]").forEach(button => {
+        button.addEventListener("click", () => {
+          this.dispatchEvent(new CustomEvent("hass-more-info", {
+            detail: { entityId: button.dataset.info },
+            bubbles: true,
+            composed: true,
+          }));
+        });
+      });
+      this.shadowRoot.querySelectorAll("button[data-button]").forEach(button => {
+        button.addEventListener("click", async () => {
+          if (button.disabled) return;
+          button.disabled = true;
+          try {
+            await this._hass.callService("button", "press", {
+              entity_id: button.dataset.button,
+            });
+          } catch (error) {
+            this._hass?.showToast?.({ message: "Cannot log the pellet bag" });
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
       this.shadowRoot.querySelectorAll("button[data-climate]").forEach(button => {
         button.addEventListener("click", async () => {
           if (button.disabled) return;
