@@ -22,7 +22,7 @@ WiNET Stove is currently developed and tested **only with the Thermorossi Slimqu
 - Two native binary sensors: **Stove active** (operating cycle) and **Stove burning** (state `working`), providing on/off history through Home Assistant Recorder.
 - Usage sensors: **Current session duration**, **Last ignition** (observed transition), and persistent **Total combustion hours**.
 - Configurable polling interval: 10–300 seconds (30 seconds by default).
-- Optional dedicated WiNET panel and editable Lovelace dashboard, with independent visibility settings.
+- One WiNET Stove sidebar entry: dedicated responsive panel with internal **Control, Consumption, Refills, Maintenance, Settings** views. The separately editable Lovelace dashboard remains accessible via a link without duplicating sidebar items.
 - Communication errors make Home Assistant entities unavailable instead of falsely reporting the stove as off.
 - Register diagnostics remain available separately from the normal climate entity attributes.
 
@@ -59,10 +59,12 @@ State mapping varies with firmware: active cycles currently include codes 2, 3, 
 
 ## Automatic user interfaces
 
-After adding WiNET Stove, the integration provides two different views (both enabled by default):
+After adding WiNET Stove, the integration provides a dedicated panel and an editable Lovelace dashboard (both enabled by default). They share **at most one sidebar entry**:
 
 1. **WiNET Stove panel** at `/winnet-stove`: an independent, responsive page with temperature, stove status, power, fan and an on/off control based on the existing climate entity. It requires no Mushroom card or other external frontend dependency.
 2. **WiNET Stove Lovelace dashboard** at `/winnet-stove-dashboard`: a native dashboard created on first setup with climate, monitoring entities and a 24-hour history graph. You can edit its cards normally in Home Assistant. Its contents are not overwritten by later updates or option changes.
+
+If both are enabled, only the **dedicated panel** appears in the sidebar; it includes a link to the Lovelace dashboard. If the panel is disabled, the dashboard may appear as the sole sidebar item. Neither is shown when both options are off. The Lovelace dashboard's saved content is not overwritten.
 
 Open **Settings → Devices & services → WiNET Stove → Configure** to change **Show dedicated panel** and **Show Lovelace dashboard** independently. You can show only one or **hide both**. Hiding the Lovelace dashboard removes it from the sidebar but preserves its URL and content; it is **not deleted**. The dedicated panel is unregistered when hidden.
 
@@ -94,6 +96,70 @@ The refill log records **quantity (kg)**, **date**, and **source** (manual or au
 Already-recorded bag counters are preserved as historical totals, but past bags lack a known weight or timestamp. They are therefore **not fabricated into the new refill history or kilogram total**. Only newly recorded events have editable details. The dedicated panel shows the **20 most recent events**; the underlying local store retains up to 5,000 events. A full-bag event decreases whole-bag stock only if stock is positive; partial-kg refills are not automatically deducted from whole-bag inventory.
 
 Home Assistant service actions `winnet_stove.record_refill`, `winnet_stove.edit_refill`, and `winnet_stove.remove_refill` are used by the panel. The legacy `Log one pellet bag loaded` button is retained for compatibility with existing automations. Existing user-edited Lovelace dashboards are **not overwritten** by updates; the new panel manages refill history while Lovelace can show the `Pellet refills` sensor.
+
+## Consumption, expenses and calibration
+
+The **Consumption** tab tracks confirmed combustion hours by local calendar day and reports
+raw controller power values and time spent at each power. Raw register values are **not
+assumed to be manufacturer-calibrated power levels**. Nothing is written to the stove.
+
+The plugin supports these estimation paths:
+
+1. **Average kg/h:** input a user-estimated pellet rate. Without a configured rate
+   estimates are unavailable, not zero.
+2. **Two full-hopper events:** when recording refills, optionally check **Hopper returned
+   to the same full level**. If two confirmed full events exist, calculate an observed
+   interval average as **all kg added after the first full event up to and including the
+   second full event / confirmed burning hours between them**. Missing unrecorded top-ups
+   invalidate this calibration. Ordinary and automatically inferred refills are *not*
+   marked as full by default.
+3. **Power-aware rates:** optionally configure kg/h for each reported raw power value
+   1–5. The plugin uses this profile **only if all observed power time has configured rates**;
+   otherwise it falls back to an interval-calibrated or user-average rate. Do not enter
+   arbitrary manufacturer estimates as measured facts.
+
+The **estimated cost** uses the configured bag price, bag weight and estimated kg.
+Daily totals are retained for up to 400 local days from the time this feature is installed;
+there is no historical reconstruction. Current-day and month statistics update after
+validated working samples. Unknown prices or missing rates produce unavailable costs.
+
+## Maintenance
+
+The **Maintenance** tab monitors confirmed working hours since each maintenance event.
+Default reminder thresholds are burner cleaning **12 hours**, deep cleaning **100 hours**,
+and annual maintenance **1,000 hours**. These are **illustrative configurable defaults,
+not manufacturer maintenance recommendations**. Consult the Thermorossi manual for actual
+maintenance intervals. Tap **Completed** after performing a task; a confirmation is
+required and the corresponding timer restarts. A Home Assistant persistent notification
+is created once per maintenance cycle when overdue.
+
+## Diagnostics and backups
+
+The dedicated panel's **Settings** tab provides **Connection diagnostics**:
+last valid controller response, current consecutive communication failures and
+accumulated errors. A lost WiNET connection is not interpreted as the stove
+switching off, and unavailable periods are excluded from combustion accounting.
+
+The plugin saves its measurements, counter corrections, refill history and
+maintenance state to Home Assistant's local `.storage` area. To restore these
+values after a server failure, use a **Home Assistant configuration backup**
+containing `.storage`. Back up before installing updates; restoring a backup
+rolls back subsequent records. The plugin does not silently delete existing
+data or generate a fake history.
+
+## Counter correction and migration
+
+The **Settings** tab includes a confirmed **Reset legacy bag counter** action.
+This affects only pre-ledger bag counts, and **never deletes your refill records or
+operating-time history**. It is intended for one-off corrections, not regular use.
+
+All statistics, maintenance baselines and calibration events are stored locally with
+the pre-existing usage data. Legacy combustion hours are preserved; first-time
+maintenance intervals begin at the observed total on migration, preventing immediate
+false reminders. Neither the original pellet readings nor built-in stove safety controls
+are replaced. For backups, protect the Home Assistant configuration and `.storage`
+directory before updates. Check your dashboard after migration because user-editable
+Lovelace cards are not overwritten.
 
 ## Configuration
 

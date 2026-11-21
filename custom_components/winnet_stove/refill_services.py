@@ -25,7 +25,7 @@ def register_refill_services(hass):
     async def record(call):
         try:
             await _entry_usage(hass, call.data["entry_id"]).async_record_refill(
-                call.data["quantity_kg"]
+                call.data["quantity_kg"], call.data.get("full_hopper", False)
             )
         except ValueError as err:
             raise HomeAssistantError(str(err)) from err
@@ -33,7 +33,8 @@ def register_refill_services(hass):
     async def edit(call):
         try:
             await _entry_usage(hass, call.data["entry_id"]).async_edit_refill(
-                str(UUID(call.data["refill_id"])), call.data["quantity_kg"]
+                str(UUID(call.data["refill_id"])), call.data["quantity_kg"],
+                call.data.get("full_hopper")
             )
         except ValueError as err:
             raise HomeAssistantError(str(err)) from err
@@ -50,6 +51,7 @@ def register_refill_services(hass):
     quantity = {**common, vol.Required("quantity_kg"): vol.All(
         vol.Coerce(float), vol.Range(min=0.001, max=MAX_KG)
     )}
+    quantity[vol.Optional("full_hopper")] = bool
     item = {vol.Required("refill_id"): str}
 
     hass.services.async_register(
@@ -60,4 +62,32 @@ def register_refill_services(hass):
     )
     hass.services.async_register(
         DOMAIN, "remove_refill", remove, schema=vol.Schema({**common, **item})
+    )
+
+    async def reset_legacy(call):
+        if call.data.get("confirm") is not True:
+            raise HomeAssistantError("Confirmation required")
+        await _entry_usage(hass, call.data["entry_id"]).async_reset_legacy_bags()
+
+    async def complete_maintenance(call):
+        if call.data.get("confirm") is not True:
+            raise HomeAssistantError("Confirmation required")
+        try:
+            await _entry_usage(hass, call.data["entry_id"]).async_reset_maintenance(
+                call.data["kind"]
+            )
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
+
+    hass.services.async_register(
+        DOMAIN, "reset_legacy_bags", reset_legacy,
+        schema=vol.Schema({**common, vol.Required("confirm"): bool}),
+    )
+    hass.services.async_register(
+        DOMAIN, "complete_maintenance", complete_maintenance,
+        schema=vol.Schema({
+            **common,
+            vol.Required("kind"): vol.In(["burner", "deep_clean", "annual_service"]),
+            vol.Required("confirm"): bool,
+        }),
     )

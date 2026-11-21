@@ -52,6 +52,7 @@ def _entities(hass, entries):
 
 def _panel_config(entries, entities):
     return {
+        "lovelace_available": any(e.options.get("show_lovelace", True) for e in entries),
         "stoves": [
             {"title": entry.title, "entry_id": entry.entry_id, "entities": entities[entry.entry_id]}
             for entry in entries
@@ -78,7 +79,12 @@ def _lovelace_config(entries, entities):
         pellet_controls = [mapping[key] for key in (
             'pellet_setting_initial_hours', 'pellet_setting_bag_weight_kg',
             'pellet_setting_rate_kg_h', 'pellet_setting_bags_in_stock',
-            'pellet_auto_refill', 'pellet_refill_log'
+            'pellet_auto_refill', 'pellet_refill_log',
+            'pellet_setting_price_per_bag', 'insights_today_cost',
+            'insights_today_pellet', 'insights_month_cost',
+            'insights_effective_rate', 'insights_maintenance_burner',
+            'insights_maintenance_deep_clean',
+            'insights_maintenance_annual_service'
         ) if key in mapping]
         if pellet_controls:
             cards.append({'type': 'entities', 'title': 'Pellet management', 'entities': pellet_controls})
@@ -121,6 +127,9 @@ async def async_update_ui(hass):
     state = hass.data.setdefault(f"{DOMAIN}_ui", {})
     show_panel = any(e.options.get("show_panel", True) for e in entries)
     show_lovelace = any(e.options.get("show_lovelace", True) for e in entries)
+    # At most one WiNET sidebar item. Lovelace stays directly accessible
+    # through a link in the dedicated panel when both are enabled.
+    lovelace_sidebar_visible = show_lovelace and not show_panel
 
     if show_panel:
         if not state.get("static_ready"):
@@ -152,10 +161,10 @@ async def async_update_ui(hass):
         frontend.async_remove_panel(hass, PANEL_PATH)
         state["panel_ready"] = False
 
-    await _async_update_lovelace(hass, entries, show_lovelace)
+    await _async_update_lovelace(hass, entries, lovelace_sidebar_visible, show_lovelace)
 
 
-async def _async_update_lovelace(hass, entries, visible):
+async def _async_update_lovelace(hass, entries, visible, create_enabled):
     """Create dashboard once; visibility toggles never overwrite its cards."""
     if LOVELACE_DATA not in hass.data:
         _LOGGER.warning("Lovelace is not loaded; cannot set up WiNET dashboard")
@@ -178,7 +187,7 @@ async def _async_update_lovelace(hass, entries, visible):
         # A user intentionally deleted the previously managed dashboard.
         _LOGGER.info("WiNET Lovelace dashboard was removed; not recreating it")
         return
-    if not existing and (not visible or not entries):
+    if not existing and (not create_enabled or not entries):
         return
 
     if existing is None:
@@ -186,7 +195,7 @@ async def _async_update_lovelace(hass, entries, visible):
             "url_path": LOVELACE_PATH,
             "title": "WiNET Stove",
             "icon": "mdi:fire",
-            "show_in_sidebar": True,
+            "show_in_sidebar": visible,
             "require_admin": False,
         })
         storage = dashboard.LovelaceStorage(hass, existing)
@@ -198,7 +207,7 @@ async def _async_update_lovelace(hass, entries, visible):
             frontend_url_path=LOVELACE_PATH,
             sidebar_title="WiNET Stove",
             sidebar_icon="mdi:fire",
-            show_in_sidebar=True,
+            show_in_sidebar=visible,
             require_admin=False,
             config={"mode": "storage"},
         )

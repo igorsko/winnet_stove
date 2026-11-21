@@ -52,6 +52,14 @@ async def async_setup_entry(
     ]
     
     sensors.append(StoveRefillLogSensor(hass.data[DOMAIN][entry.entry_id]['usage'], entry))
+    sensors.extend([
+        StoveInsightsSensor(hass.data[DOMAIN][entry.entry_id]["usage"], entry, kind)
+        for kind in ("cost_per_hour", "effective_rate", "today_hours",
+                     "today_pellet", "today_cost", "month_cost",
+                     "power_profile", "maintenance_burner",
+                     "maintenance_deep_clean", "maintenance_annual_service")
+    ])
+    sensors.append(StoveConnectionDiagnosticsSensor(hass.data[DOMAIN][entry.entry_id]["usage"], entry))
     async_add_entities(sensors)
     _LOGGER.info(f"Creati {len(sensors)} sensori")
 
@@ -528,4 +536,110 @@ class StoveRefillLogSensor(SensorEntity):
             "events": list(reversed(self._usage.refills[-20:])),
             "history_limit": 20,
             "legacy_bag_count_excluded": True,
+        }
+
+class StoveInsightsSensor(SensorEntity):
+    """Informational readings derived from observed hours and user settings."""
+
+    _attr_has_entity_name = True
+    _KINDS = {
+        "cost_per_hour": ("Estimated cost per hour", "€/h"),
+        "effective_rate": ("Effective pellet consumption", "kg/h"),
+        "today_hours": ("Combustion today", "h"),
+        "today_pellet": ("Estimated pellet today", "kg"),
+        "today_cost": ("Estimated pellet cost today", "€"),
+        "month_cost": ("Estimated pellet cost this month", "€"),
+        "power_profile": ("Operating hours by power", None),
+        "maintenance_burner": ("Burner cleaning remaining", "h"),
+        "maintenance_deep_clean": ("Deep cleaning remaining", "h"),
+        "maintenance_annual_service": ("Annual maintenance remaining", "h"),
+    }
+
+    def __init__(self, usage, entry, kind):
+        self._usage = usage
+        self._kind = kind
+        self._attr_name, self._attr_native_unit_of_measurement = self._KINDS[kind]
+        self._attr_unique_id = f"{entry.entry_id}_insights_{kind}"
+        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        self._attr_icon = "mdi:chart-line"
+        if kind != "power_profile":
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self.async_on_remove(self._usage.async_subscribe(self.async_write_ha_state))
+
+    @property
+    def native_value(self):
+        summary = self._usage.pellet_statistics()
+        daily = self._usage.daily_statistics()
+        if self._kind == "cost_per_hour":
+            return summary["cost_per_hour"]
+        if self._kind == "effective_rate":
+            return summary["effective_rate_kg_h"]
+        if self._kind == "power_profile":
+            return len(daily["power_hours"])
+        if self._kind.startswith("maintenance_"):
+            return self._usage.maintenance_statistics()[
+                self._kind.removeprefix("maintenance_")
+            ]["remaining_hours"]
+        from homeassistant.util import dt as dt_util
+        today = dt_util.now().date().isoformat()
+        day = next((d for d in daily["days"] if d["date"] == today), None)
+        if self._kind == "today_hours":
+            return day["working_h"] if day else 0
+        if self._kind == "today_pellet":
+            return day["estimated_kg"] if day else (0 if daily["rate_kg_h"] else None)
+        if self._kind == "today_cost":
+            return day["estimated_cost"] if day else (0 if daily["rate_kg_h"] else None)
+        if self._kind == "month_cost":
+            prices = [d["estimated_cost"] for d in daily["days"]
+                      if d["date"].startswith(today[:7])]
+            return round(sum(x for x in prices if x is not None), 2) if prices and all(x is not None for x in prices) else None
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        if self._kind == "power_profile":
+            return self._usage.daily_statistics()
+        if self._kind == "effective_rate":
+            stats = self._usage.pellet_statistics()
+            return {"source": stats["rate_source"],
+                    "method": "estimated_not_metered"}
+        if self._kind.startswith("maintenance_"):
+            return self._usage.maintenance_statistics()[
+                self._kind.removeprefix("maintenance_")
+            ]
+        if self._kind == "month_cost":
+            return {"daily_history": self._usage.daily_statistics()["days"][-31:]}
+        return None
+
+class StoveConnectionDiagnosticsSensor(SensorEntity):
+    """Report connectivity separately from stove operating state."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Connection diagnostics"
+    _attr_icon = "mdi:lan"
+
+    def __init__(self, usage, entry):
+        self._usage = usage
+        self._attr_unique_id = f"{entry.entry_id}_diagnostics_connection"
+        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self.async_on_remove(self._usage.async_subscribe(self.async_write_ha_state))
+
+    @property
+    def native_value(self):
+        return "Connected" if self._usage.consecutive_failures == 0 and self._usage.last_success_at else "Unavailable"
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "last_valid_response": self._usage.last_success_at.isoformat()
+            if self._usage.last_success_at else None,
+            "consecutive_errors": self._usage.consecutive_failures,
+            "total_communication_errors": self._usage.communication_failures,
+            "stove_power_state_not_inferred_when_offline": True,
         }
