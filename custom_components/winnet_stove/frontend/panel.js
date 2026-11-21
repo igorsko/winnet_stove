@@ -5,6 +5,8 @@ class WinetStovePanel extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._last = "";
+    this._refillDraft = null;
+    this._uiMessage = "";
   }
 
   set hass(value) {
@@ -79,16 +81,47 @@ class WinetStovePanel extends HTMLElement {
           <span>${this.escape(label)}</span><strong>${this.format(id)}</strong>
         </button>`
       ).join("");
-      const loadBagButton = m.pellet_action_load_bag
-        ? `<button class="load-bag" data-button="${this.escape(m.pellet_action_load_bag)}">Log one pellet bag loaded</button>`
-        : "";
-      const pelletCard = (pelletReadings || pelletSettings || loadBagButton) ? `
+      const ledger = m.pellet_refill_log
+        ? this._hass.states?.[m.pellet_refill_log]?.attributes || {}
+        : {};
+      const refills = Array.isArray(ledger.events) ? ledger.events : [];
+      const refillRows = refills.map(event => {
+        const label = event.source === "auto" ? "Automatic · inferred" : "Manual";
+        const date = new Date(event.at);
+        const when = Number.isNaN(date.valueOf())
+          ? "Date unavailable" : date.toLocaleString();
+        return `<div class="refill-row">
+          <div><strong>${this.escape(event.kg)} kg</strong>
+            <small>${this.escape(label)} · ${this.escape(when)}</small></div>
+          <div class="row-actions">
+            <button class="secondary mini" data-refill-edit="${this.escape(event.id)}"
+              data-entry="${this.escape(stove.entry_id)}"
+              data-kg="${this.escape(event.kg)}">Edit</button>
+            <button class="secondary mini" data-refill-delete="${this.escape(event.id)}"
+              data-entry="${this.escape(stove.entry_id)}">Delete</button>
+          </div>
+        </div>`;
+      }).join("");
+      const refillCard = stove.entry_id ? `
+        <div class="refill-manager">
+          <div class="refill-head"><div><h4>Refills</h4>
+          <p class="hint">Record how much pellet you add. Automatic entries are
+          only inferred from alarm recovery and may need correction.</p></div>
+          <button data-refill-new="${this.escape(stove.entry_id)}">Record refill</button></div>
+          <p class="refill-error" role="alert">${this.escape(this._refillDraft ? "" : this._uiMessage)}</p>
+          <div class="refill-summary">
+            Recorded: <strong>${this.escape(ledger.total_kg ?? "0")} kg</strong>
+            · ${this.escape(refills.length)} recent entries
+          </div>
+          ${refillRows || '<p class="hint">No refills registered yet.</p>'}
+        </div>` : "";
+      const pelletCard = (pelletReadings || pelletSettings || refillCard) ? `
         <section class="pellet">
           <h3>Pellet and operating hours</h3>
           <p class="hint">Consumption is estimated from confirmed operating time and the average kg/h you configure. Loaded bags are logged separately.</p>
           <div class="metrics">${pelletReadings}</div>
           <div class="settings">${pelletSettings}</div>
-          <div class="controls">${loadBagButton}</div>
+          ${refillCard}
         </section>` : "";
       const temp = current?.attributes?.current_temperature;
       return `
@@ -103,6 +136,29 @@ class WinetStovePanel extends HTMLElement {
           ${pelletCard}
         </section>`;
     }).join("");
+    const draft = this._refillDraft;
+    const modal = draft ? `
+      <dialog class="refill-dialog" aria-label="Refill editor">
+        <h3>${draft.id ? "Correct refill" : "Record pellet refill"}</h3>
+        <p class="hint">Enter the actual amount of pellet placed in the hopper.
+        An automatic entry is only an estimate based on the stove alarm.</p>
+        <label for="refill-qty">Quantity</label>
+        <div class="refill-input">
+          <input id="refill-qty" type="number" min="0.001" step="any"
+            value="${this.escape(draft.quantity)}" required>
+          <select id="refill-unit">
+            <option value="kg" ${draft.unit === "kg" ? "selected" : ""}>kg</option>
+            <option value="bags" ${draft.unit === "bags" ? "selected" : ""}>bags</option>
+          </select>
+        </div>
+        <p class="hint">One bag = ${this.escape(draft.weight)} kg.
+        The quantity is converted to kilograms before saving.</p>
+        <p class="refill-error" role="alert">${this.escape(this._uiMessage)}</p>
+        <div class="controls">
+          <button data-refill-save>Save refill</button>
+          <button class="secondary" data-refill-cancel>Cancel</button>
+        </div>
+      </dialog>` : "";
     const html = `
       <style>
         :host { display: block; color: var(--primary-text-color); background: var(--primary-background-color); min-height: 100%; }
@@ -133,7 +189,28 @@ class WinetStovePanel extends HTMLElement {
         .settings .setting { background: var(--secondary-background-color); color: var(--primary-text-color); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left; }
         .settings .setting span { color: var(--secondary-text-color); font-size: 12px; }
         .settings .setting strong { font-size: 17px; }
-        .load-bag { background: var(--primary-color); }
+        .refill-manager { margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--divider-color); }
+        .refill-head { display:flex; gap:14px; align-items:center; justify-content:space-between; }
+        .refill-head h4 { margin:0 0 7px; }
+        .refill-head p { margin:0; max-width:550px; }
+        .refill-summary { padding:13px 0; font-size:13px; color:var(--secondary-text-color); }
+        .refill-row { display:flex; justify-content:space-between; gap:12px; align-items:center;
+          border-top:1px solid var(--divider-color); padding:10px 0; }
+        .refill-row small { display:block; margin-top:4px; color:var(--secondary-text-color); }
+        .row-actions { display:flex; gap:5px; }
+        button.mini { padding:7px 10px; font-size:12px; }
+        .refill-dialog { max-width:min(420px,92vw); border:1px solid var(--divider-color);
+          border-radius:16px; background:var(--card-background-color); color:var(--primary-text-color);
+          padding:24px; box-shadow:0 16px 48px #0005; }
+        .refill-dialog::backdrop { background:#0008; }
+        .refill-dialog h3 { margin-top:0; }
+        .refill-input { display:flex; gap:10px; margin-top:8px; }
+        .refill-input input { min-width:0; flex:1; }
+        .refill-input input,.refill-input select { background:var(--secondary-background-color);
+          color:var(--primary-text-color); border:1px solid var(--divider-color);
+          border-radius:8px; padding:10px; font:inherit; }
+        .refill-error { color:var(--error-color,#ba2630); font-size:13px; }
+        @media(max-width:500px) { .refill-head { align-items:start; flex-direction:column; } }
         button { border: none; border-radius: 12px; padding: 13px 20px; color: var(--text-primary-color, white);
           background: var(--primary-color); font: inherit; font-weight: 600; cursor: pointer; }
         button.secondary { background: var(--secondary-background-color); color: var(--primary-text-color); }
@@ -141,7 +218,7 @@ class WinetStovePanel extends HTMLElement {
         .empty { padding: 24px; }
         @media(max-width:500px) { .wrap{padding:18px 12px 44px} .stove{padding:18px} .header{align-items:start;flex-direction:column} }
       </style>
-      <main class="wrap">
+      <main class="wrap">\n        ${modal}
         <div class="header">
           <div><span class="eyebrow">SMART HEATING</span><h1>WiNET Stove</h1></div>
           <a class="small-link" href="/winnet-stove-dashboard">Lovelace dashboard</a>
@@ -149,8 +226,97 @@ class WinetStovePanel extends HTMLElement {
         ${blocks || '<p class="empty">No active WiNET Stove devices found.</p>'}
       </main>`;
     if (html !== this._last) {
+      // Home Assistant can push fresh state while a user is typing.
+      // Preserve the open editor and its unsaved quantity across rerenders.
+      const previous = this.shadowRoot.querySelector(".refill-dialog");
+      const wasOpen = !!previous?.open;
+      const typed = wasOpen ? previous.querySelector("#refill-qty")?.value : null;
+      const unit = wasOpen ? previous.querySelector("#refill-unit")?.value : null;
       this._last = html;
       this.shadowRoot.innerHTML = html;
+      const restored = this.shadowRoot.querySelector(".refill-dialog");
+      if (wasOpen && restored) {
+        if (typed !== null) restored.querySelector("#refill-qty").value = typed;
+        if (unit) restored.querySelector("#refill-unit").value = unit;
+        restored.showModal();
+      }
+      this.shadowRoot.querySelectorAll("button[data-refill-new]").forEach(button => {
+        button.addEventListener("click", () => this.openRefillDialog({
+          entry: button.dataset.refillNew,
+          quantity: this._hass.states?.[
+            stoves.find(s => s.entry_id === button.dataset.refillNew)?.entities?.pellet_setting_bag_weight_kg
+          ]?.state || "15",
+          weight: this._hass.states?.[
+            stoves.find(s => s.entry_id === button.dataset.refillNew)?.entities?.pellet_setting_bag_weight_kg
+          ]?.state || "15",
+          unit: "kg",
+          id: null
+        }));
+      });
+      this.shadowRoot.querySelectorAll("button[data-refill-edit]").forEach(button => {
+        button.addEventListener("click", () => this.openRefillDialog({
+          entry: button.dataset.entry,
+          id: button.dataset.refillEdit,
+          quantity: button.dataset.kg,
+          weight: this._hass.states?.[
+            stoves.find(s => s.entry_id === button.dataset.entry)?.entities?.pellet_setting_bag_weight_kg
+          ]?.state || "15",
+          unit: "kg"
+        }));
+      });
+      this.shadowRoot.querySelectorAll("button[data-refill-delete]").forEach(button => {
+        button.addEventListener("click", async () => {
+          if (!window.confirm("Delete this refill? This cannot be undone.")) return;
+          button.disabled = true;
+          try {
+            await this._hass.callService("winnet_stove", "remove_refill", {
+              entry_id: button.dataset.entry,
+              refill_id: button.dataset.refillDelete
+            });
+          } catch (error) {
+            this._uiMessage = "Could not remove refill: " + String(error.message || error);
+            this._last = "";
+            this.render();
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
+      this.shadowRoot.querySelector("[data-refill-cancel]")?.addEventListener("click", () => {
+        this._refillDraft = null;
+        this._uiMessage = "";
+        this._last = "";
+        this.render();
+      });
+      this.shadowRoot.querySelector("[data-refill-save]")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        const raw = Number(this.shadowRoot.querySelector("#refill-qty")?.value);
+        const unit = this.shadowRoot.querySelector("#refill-unit")?.value;
+        const kg = unit === "bags" ? raw * Number(this._refillDraft.weight) : raw;
+        if (!Number.isFinite(kg) || kg <= 0 || kg > 500) {
+          this._uiMessage = "Enter a quantity between 0 and 500 kg.";
+          this.shadowRoot.querySelector(".refill-error").textContent = this._uiMessage;
+          return;
+        }
+        button.disabled = true;
+        try {
+          const service = this._refillDraft.id ? "edit_refill" : "record_refill";
+          const data = {
+            entry_id: this._refillDraft.entry,
+            quantity_kg: kg
+          };
+          if (this._refillDraft.id) data.refill_id = this._refillDraft.id;
+          await this._hass.callService("winnet_stove", service, data);
+          this._refillDraft = null;
+          this._uiMessage = "";
+          this._last = "";
+          this.render();
+        } catch (error) {
+          button.disabled = false;
+          this._uiMessage = "Could not save refill: " + String(error.message || error);
+          this.shadowRoot.querySelector(".refill-error").textContent = this._uiMessage;
+        }
+      });
       this.shadowRoot.querySelectorAll("button[data-info]").forEach(button => {
         button.addEventListener("click", () => {
           this.dispatchEvent(new CustomEvent("hass-more-info", {
@@ -191,6 +357,13 @@ class WinetStovePanel extends HTMLElement {
         });
       });
     }
+  }
+  openRefillDialog(draft) {
+    this._refillDraft = draft;
+    this._uiMessage = "";
+    this._last = "";
+    this.render();
+    this.shadowRoot.querySelector(".refill-dialog")?.showModal();
   }
 }
 customElements.define("winnet-stove-panel", WinetStovePanel);

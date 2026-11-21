@@ -1,0 +1,57 @@
+record_refill:
+  name: Record pellet refill
+  description: Save pellet placed in the hopper, in kilograms. No commands are sent to the stove.
+  fields:
+    entry_id:
+      name: Stove entry ID
+      required: true
+      selector:
+        text:
+    quantity_kg:
+      name: Quantity
+      required: true
+      selector:
+        number:
+          min: 0.001
+          max: 500
+          step: any
+          unit_of_measurement: kg
+
+edit_refill:
+  name: Correct pellet refill
+  description: Correct the quantity of a recorded manual or inferred refill.
+  fields:
+    entry_id:
+      name: Stove entry ID
+      required: true
+      selector:
+        text:
+    refill_id:
+      name: Refill ID
+      required: true
+      selector:
+        text:
+    quantity_kg:
+      name: Corrected quantity
+      required: true
+      selector:
+        number:
+          min: 0.001
+          max: 500
+          step: any
+          unit_of_measurement: kg
+
+remove_refill:
+  name: Delete pellet refill
+  description: Remove an inaccurate manual or automatically inferred refill.
+  fields:
+    entry_id:
+      name: Stove entry ID
+      required: true
+      selector:
+        text:
+    refill_id:
+      name: Refill ID
+      required: true
+      selector:
+        text:

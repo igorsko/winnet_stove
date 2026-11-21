@@ -53,7 +53,7 @@ def _entities(hass, entries):
 def _panel_config(entries, entities):
     return {
         "stoves": [
-            {"title": entry.title, "entities": entities[entry.entry_id]}
+            {"title": entry.title, "entry_id": entry.entry_id, "entities": entities[entry.entry_id]}
             for entry in entries
         ]
     }
@@ -78,10 +78,17 @@ def _lovelace_config(entries, entities):
         pellet_controls = [mapping[key] for key in (
             'pellet_setting_initial_hours', 'pellet_setting_bag_weight_kg',
             'pellet_setting_rate_kg_h', 'pellet_setting_bags_in_stock',
-            'pellet_action_load_bag', 'pellet_auto_refill'
+            'pellet_auto_refill', 'pellet_refill_log'
         ) if key in mapping]
         if pellet_controls:
             cards.append({'type': 'entities', 'title': 'Pellet management', 'entities': pellet_controls})
+        cards.append({
+            "type": "markdown",
+            "content": (
+                "**Pellet refills:** use the [WiNET Stove refill editor]"
+                "(/winnet-stove) to record, correct or delete quantities."
+            ),
+        })
         if switch_id := mapping.get("crono_switch"):
             cards.append({
                 "type": "entities", "title": "Timer", "entities": [switch_id]

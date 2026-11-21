@@ -74,7 +74,7 @@ When more than one WiNET stove is configured, both visibility switches apply to 
 
 WiNET alarm **bit 0** is labelled **NO PELLET / CLEAN BURNER**. It is **not definitive proof** that the hopper is empty. For this reason the **Infer pellet refill after alarm** switch is **disabled by default**. When enabled, WiNET Stove watches for this alarm, an observed off/starting state, a cleared alarm, and **two consecutive working-state polls**. It then records **one presumed pellet bag** using the configured bag weight for any future calculations, and decreases stock by one if positive.
 
-One presumed bag is logged per observed alarm episode; reconnects and normal polls do not generate further bags. Pending alarm state and counters persist across restarts. This operation **never sends a command to the stove**. Cleaning a burner, clearing a pellet blockage, or a partial refill can make the inferred bag count inaccurate. The user can disable the switch or adjust the bag count and stock manually.
+One presumed bag is logged per observed alarm episode; reconnects and normal polls do not generate further bags. Pending alarm state and counters persist across restarts. This operation **never sends a command to the stove**. Cleaning a burner, clearing a pellet blockage, or a partial refill can make the inferred bag count inaccurate. The user can disable the switch or correct or delete an inferred refill in the refill history.
 
 ## Pellet and hours accounting
 
@@ -82,10 +82,18 @@ One presumed bag is logged per observed alarm episode; reconnects and normal pol
 - **Bag weight** (default 15 kg): set the weight of your bags.
 - **Estimated burn rate** (kg/h): enter an approximate average for your stove; **default is zero, meaning not configured**. No estimated consumption will be shown until you provide a nonzero rate. Real pellet use varies with power, fuel, ignition and operating conditions.
 - **Bags in stock**: edit the available number of bags, if you want inventory tracking.
-- **Load one pellet bag** button: log one bag loaded into the stove; decrement stock by one when stock is positive. This button does not control or communicate with the stove.
+- **Refill editor** in the dedicated WiNET panel: choose kilograms or bags, save a dated manual refill, and edit or delete any recent manual or automatically inferred refill. The earlier single-bag button remains as a compatibility entity for existing automations, but is no longer displayed in the panel.
 - Sensors show counted bags loaded, **estimated kg and bags consumed**, **estimated bags/hour**, and **estimated hours/bag** based on confirmed `working` hours. The consumed estimates do **not** count the manual bags as physically burned; they are separate indicators. Historical hours are never treated as consumption observed by Home Assistant.
 
 Data is stored locally by Home Assistant per device and is preserved across restarts. An already-existing editable Lovelace dashboard is intentionally **not overwritten** by updates: add the new entities manually, or create a new dashboard for the full pellet section. The original dashboard generated on a first install includes the pellet controls and sensors.
+
+### Refill history and migration
+
+The refill log records **quantity (kg)**, **date**, and **source** (manual or automatically inferred). In the WiNET dedicated panel, open **Record refill** to add a quantity; use **Edit** or **Delete** next to an event to correct a mistaken entry. Automatic inference is explicitly labeled, because the WiNET alarm may also mean *clean burner*. No refill record sends any command to the stove.
+
+Already-recorded bag counters are preserved as historical totals, but past bags lack a known weight or timestamp. They are therefore **not fabricated into the new refill history or kilogram total**. Only newly recorded events have editable details. The dedicated panel shows the **20 most recent events**; the underlying local store retains up to 5,000 events. A full-bag event decreases whole-bag stock only if stock is positive; partial-kg refills are not automatically deducted from whole-bag inventory.
+
+Home Assistant service actions `winnet_stove.record_refill`, `winnet_stove.edit_refill`, and `winnet_stove.remove_refill` are used by the panel. The legacy `Log one pellet bag loaded` button is retained for compatibility with existing automations. Existing user-edited Lovelace dashboards are **not overwritten** by updates; the new panel manages refill history while Lovelace can show the `Pellet refills` sensor.
 
 ## Configuration
 

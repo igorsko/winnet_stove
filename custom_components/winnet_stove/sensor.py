@@ -51,6 +51,7 @@ async def async_setup_entry(
           for kind in ('total_hours', 'bags_loaded', 'pellet_used', 'bags_per_hour', 'hours_per_bag', 'estimated_bags')],
     ]
     
+    sensors.append(StoveRefillLogSensor(hass.data[DOMAIN][entry.entry_id]['usage'], entry))
     async_add_entities(sensors)
     _LOGGER.info(f"Creati {len(sensors)} sensori")
 
@@ -495,4 +496,36 @@ class StovePelletSensor(SensorEntity):
             "rate_kg_h": self._usage.pellet["rate_kg_h"],
             "bag_weight_kg": self._usage.pellet["bag_weight_kg"],
             "measured_not_actual": True,
+        }
+
+class StoveRefillLogSensor(SensorEntity):
+    """Expose a short, read-only refill history for the frontend."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:clipboard-list-outline"
+
+    def __init__(self, usage, entry):
+        self._usage = usage
+        self._attr_name = "Pellet refills"
+        self._attr_unique_id = f"{entry.entry_id}_pellet_refill_log"
+        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self.async_on_remove(self._usage.async_subscribe(self.async_write_ha_state))
+
+    @property
+    def native_value(self):
+        return len(self._usage.refills)
+
+    @property
+    def extra_state_attributes(self):
+        stats = self._usage.refill_statistics()
+        return {
+            "total_kg": stats["total_kg"],
+            "manual_count": stats["manual"],
+            "automatic_count": stats["automatic"],
+            "events": list(reversed(self._usage.refills[-20:])),
+            "history_limit": 20,
+            "legacy_bag_count_excluded": True,
         }
