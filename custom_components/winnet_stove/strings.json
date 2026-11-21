@@ -2,33 +2,33 @@
   "config": {
     "step": {
       "user": {
-        "title": "Configura Stufa WiNET",
-        "description": "Inserisci l'indirizzo IP del modulo WiNET della tua stufa.\n\n**Consiglio**: Per una visualizzazione ottimale, installa [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom) da HACS.",
+        "title": "Configure WiNET Stove",
+        "description": "Enter the local IP address or hostname of your WiNET controller.",
         "data": {
-          "host": "Indirizzo IP"
+          "host": "Host"
         },
         "data_description": {
-          "host": "Esempio: 192.168.0.123"
+          "host": "Local IP address or hostname of your WiNET module"
         }
       }
     },
     "error": {
-      "cannot_connect": "Impossibile connettersi alla stufa. Verifica l'indirizzo IP e che la stufa sia accesa."
+      "cannot_connect": "Could not connect to the WiNET controller. Check the address and local network."
     },
     "abort": {
-      "already_configured": "Questa stufa è già configurata"
+      "already_configured": "This WiNET controller is already configured"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Opzioni WiNET Stufa",
-        "description": "Configura le opzioni avanzate.\n\n💡 **Suggerimento**: Vedi il file README.md per esempi di card con Mushroom.",
+        "title": "WiNET Stove options",
+        "description": "Configure polling options.",
         "data": {
-          "scan_interval": "Intervallo aggiornamento (secondi)"
+          "scan_interval": "Update interval (seconds)"
         },
         "data_description": {
-          "scan_interval": "Frequenza di aggiornamento dei dati dalla stufa (minimo 10s, consigliato 30s)"
+          "scan_interval": "How often to poll the controller (10–300 seconds)"
         }
       }
     }
