@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import WinetStufaAPI
 from .usage import StoveUsage
+from .ui import async_update_ui
 from .const import DOMAIN, CONF_HOST, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +51,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "usage_unsubscribe": unsubscribe,
         }
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        try:
+            await async_update_ui(hass)
+        except Exception:
+            _LOGGER.exception('Unable to configure optional WiNET user interface')
     except Exception:
         data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
         if data:
@@ -75,4 +80,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             data["usage_unsubscribe"]()
             await data["usage"].async_close()
             await data["api"].async_close()
+        try:
+            await async_update_ui(hass)
+        except Exception:
+            _LOGGER.exception("Unable to hide WiNET user interface after unload")
     return unloaded

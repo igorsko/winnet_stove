@@ -29,6 +29,7 @@ Sources for WiNET module/model listings: [WiFi-Stufe compatibility catalogue](ht
 - Two native binary sensors: **Stove active** (operating cycle) and **Stove burning** (state `working`), providing on/off history through Home Assistant Recorder.
 - Usage sensors: **Current session duration**, **Last ignition** (observed transition), and persistent **Total combustion hours**.
 - Configurable polling interval: 10–300 seconds (30 seconds by default).
+- Optional dedicated WiNET panel and editable Lovelace dashboard, with independent visibility settings.
 - Communication errors make Home Assistant entities unavailable instead of falsely reporting the stove as off.
 - Register diagnostics remain available separately from the normal climate entity attributes.
 
@@ -62,6 +63,19 @@ When Home Assistant Recorder is enabled and the entities are not excluded, open 
 **Current session duration** reports observed time in the ongoing active operating cycle. **Last ignition** records the last transition observed from an idle/off state into an active cycle (an ignition already in progress when Home Assistant starts does not invent a timestamp). **Total combustion hours** counts consecutive samples confirmed to be in the `working` state, and stores the accumulated total across Home Assistant restarts. Unknown state values or missing connectivity do not count as running time.
 
 State mapping varies with firmware: active cycles currently include codes 2, 3, 4, 5, 8, 9, while 1, 6, 7 are treated as idle/off and 0 as unknown. Validate the physical mapping on your stove before relying on it for reports. These readings must not be used as safety interlocks.
+
+## Automatic user interfaces
+
+After adding WiNET Stove, the integration provides two different views (both enabled by default):
+
+1. **WiNET Stove panel** at `/winnet-stove`: an independent, responsive page with temperature, stove status, power, fan and an on/off control based on the existing climate entity. It requires no Mushroom card or other external frontend dependency.
+2. **WiNET Stove Lovelace dashboard** at `/winnet-stove-dashboard`: a native dashboard created on first setup with climate, monitoring entities and a 24-hour history graph. You can edit its cards normally in Home Assistant. Its contents are not overwritten by later updates or option changes.
+
+Open **Settings → Devices & services → WiNET Stove → Configure** to change **Show dedicated panel** and **Show Lovelace dashboard** independently. You can show only one or **hide both**. Hiding the Lovelace dashboard removes it from the sidebar but preserves its URL and content; it is **not deleted**. The dedicated panel is unregistered when hidden.
+
+When more than one WiNET stove is configured, both visibility switches apply to the shared views: if any configured stove enables a view, the corresponding view is shown. Existing non-WiNET dashboards are never modified. If a user has already created a dashboard with the reserved URL, WiNET Stove will leave it alone. A dashboard previously deleted by the user is not automatically recreated.
+
+**Note:** this implementation uses Home Assistant's dashboard storage APIs, which can change between Home Assistant versions. Test it on your Home Assistant installation before relying on it. If UI registration fails, the stove entities can still operate.
 
 ## Configuration
 
