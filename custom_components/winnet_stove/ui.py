@@ -157,8 +157,8 @@ async def _async_update_lovelace(hass, entries, visible):
         None,
     )
 
-    if existing and not owner.get("created"):
-        _LOGGER.warning("Dashboard path %s is already owned by the user", LOVELACE_PATH)
+    if existing and (not owner.get("created") or owner.get("dashboard_id") != existing["id"]):
+        _LOGGER.warning("Dashboard path %s is not owned by WiNET; leaving it unchanged", LOVELACE_PATH)
         return
     if not existing and owner.get("created"):
         # A user intentionally deleted the previously managed dashboard.
@@ -178,7 +178,7 @@ async def _async_update_lovelace(hass, entries, visible):
         storage = dashboard.LovelaceStorage(hass, existing)
         await storage.async_save(_lovelace_config(entries, _entities(hass, entries)))
         hass.data[LOVELACE_DATA].dashboards[LOVELACE_PATH] = storage
-        await owner_store.async_save({"created": True})
+        await owner_store.async_save({"created": True, "dashboard_id": existing["id"]})
         frontend.async_register_built_in_panel(
             hass, "lovelace",
             frontend_url_path=LOVELACE_PATH,
