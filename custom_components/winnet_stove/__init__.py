@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import WinetStufaAPI
+from .ui import async_update_ui
 from .const import DOMAIN, CONF_HOST, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,6 +44,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "scan_interval": interval,
         }
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        try:
+            await async_update_ui(hass)
+        except Exception:
+            _LOGGER.exception('Unable to configure optional WiNET user interface')
     except Exception:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
         await api.async_close()
@@ -63,4 +68,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
         if data:
             await data["api"].async_close()
+            try:
+                await async_update_ui(hass)
+            except Exception:
+                _LOGGER.exception("Unable to hide WiNET user interface after unload")
     return unloaded

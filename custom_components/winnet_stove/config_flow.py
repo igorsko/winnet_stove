@@ -74,6 +74,14 @@ class WinetStufaOptionsFlow(config_entries.OptionsFlow):
                     default=self._legacy_entry.options.get(
                         CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                     )
-                ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300))
+                ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
+                vol.Optional(
+                    "show_panel",
+                    default=self._legacy_entry.options.get("show_panel", True),
+                ): bool,
+                vol.Optional(
+                    "show_lovelace",
+                    default=self._legacy_entry.options.get("show_lovelace", True),
+                ): bool
             })
         )

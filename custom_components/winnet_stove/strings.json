@@ -25,10 +25,14 @@
         "title": "WiNET Stove options",
         "description": "Configure polling options.",
         "data": {
-          "scan_interval": "Update interval (seconds)"
+          "scan_interval": "Update interval (seconds)",
+          "show_panel": "Show WiNET Stove dedicated panel",
+          "show_lovelace": "Show WiNET Stove Lovelace dashboard"
         },
         "data_description": {
-          "scan_interval": "How often to poll the controller (10–300 seconds)"
+          "scan_interval": "How often to poll the controller (10–300 seconds)",
+          "show_panel": "Display the dedicated WiNET Stove page in the sidebar.",
+          "show_lovelace": "Display the automatically created Lovelace dashboard in the sidebar; hides without deleting it."
         }
       }
     }

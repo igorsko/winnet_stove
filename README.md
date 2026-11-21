@@ -12,6 +12,7 @@
 - Sensors: stove state, power, fan speed, Wi-Fi RSSI, active alarm, numeric alarm code, timer (crono) state.
 - Switch: enable or disable the stove's built-in timer (crono).
 - Configurable polling interval: 10–300 seconds (30 seconds by default).
+- Optional **WiNET Stove dedicated panel** and **prebuilt Lovelace dashboard**, both added automatically to the sidebar and controlled independently from the integration options.
 - Communication errors make Home Assistant entities unavailable instead of falsely reporting the stove as off.
 - Register diagnostics remain available separately from the normal climate entity attributes.
 
@@ -37,6 +38,19 @@
 1. Copy the folder `custom_components/winnet_stove` into your Home Assistant configuration under `custom_components/`.
 2. Restart Home Assistant.
 3. Add **WiNET Stove** in **Settings → Devices & services**.
+
+## Automatic user interfaces
+
+After adding WiNET Stove, the integration provides two different views (both enabled by default):
+
+1. **WiNET Stove panel** at `/winnet-stove`: an independent, responsive page with temperature, stove status, power, fan and an on/off control based on the existing climate entity. It requires no Mushroom card or other external frontend dependency.
+2. **WiNET Stove Lovelace dashboard** at `/winnet-stove-dashboard`: a native dashboard created on first setup with climate, monitoring entities and a 24-hour history graph. You can edit its cards normally in Home Assistant. Its contents are not overwritten by later updates or option changes.
+
+Open **Settings → Devices & services → WiNET Stove → Configure** to change **Show dedicated panel** and **Show Lovelace dashboard** independently. You can show only one or **hide both**. Hiding the Lovelace dashboard removes it from the sidebar but preserves its URL and content; it is **not deleted**. The dedicated panel is unregistered when hidden.
+
+When more than one WiNET stove is configured, both visibility switches apply to the shared views: if any configured stove enables a view, the corresponding view is shown. Existing non-WiNET dashboards are never modified. If a user has already created a dashboard with the reserved URL, WiNET Stove will leave it alone. A dashboard previously deleted by the user is not automatically recreated.
+
+**Note:** this implementation uses Home Assistant's dashboard storage APIs, which can change between Home Assistant versions. Test it on your Home Assistant installation before relying on it. If UI registration fails, the stove entities can still operate.
 
 ## Configuration
 
