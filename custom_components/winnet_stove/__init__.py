@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import WinetStufaAPI
 from .usage import StoveUsage
+from .refill_services import register_refill_services
 from .ui import async_update_ui
 from .const import DOMAIN, CONF_HOST, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 
@@ -51,6 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "usage_unsubscribe": unsubscribe,
         }
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        register_refill_services(hass)
         try:
             await async_update_ui(hass)
         except Exception:
