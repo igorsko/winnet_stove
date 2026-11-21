@@ -21,6 +21,8 @@ jobs:
           python-version: "3.13"
       - name: Compile sources
         run: python -m compileall -q custom_components/winnet_stove
+      - name: Test usage accounting
+        run: python -m unittest discover -s tests -v
       - name: Validate panel JavaScript syntax
         run: node --check custom_components/winnet_stove/frontend/panel.js
       - name: Check manifest, domain, and config flow strings
