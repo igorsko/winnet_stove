@@ -17,6 +17,13 @@ record_refill:
           step: any
           unit_of_measurement: kg
 
+    full_hopper:
+      name: Hopper returned to the same full level
+      description: Check only when the hopper is filled to a repeatable full level. Used for average-rate calibration.
+      required: false
+      selector:
+        boolean:
+
 edit_refill:
   name: Correct pellet refill
   description: Correct the quantity of a recorded manual or inferred refill.
@@ -41,6 +48,12 @@ edit_refill:
           step: any
           unit_of_measurement: kg
 
+    full_hopper:
+      name: Hopper returned to the same full level
+      required: false
+      selector:
+        boolean:
+
 remove_refill:
   name: Delete pellet refill
   description: Remove an inaccurate manual or automatically inferred refill.
@@ -55,3 +68,42 @@ remove_refill:
       required: true
       selector:
         text:
+
+reset_legacy_bags:
+  name: Reset legacy bag counter
+  description: Reset only bag counts retained from older versions; detailed refill records remain intact.
+  fields:
+    entry_id:
+      name: Stove entry ID
+      required: true
+      selector:
+        text:
+    confirm:
+      name: Confirm
+      required: true
+      selector:
+        boolean:
+
+complete_maintenance:
+  name: Record completed maintenance
+  description: Start a new maintenance interval based on current confirmed combustion hours.
+  fields:
+    entry_id:
+      name: Stove entry ID
+      required: true
+      selector:
+        text:
+    kind:
+      name: Maintenance activity
+      required: true
+      selector:
+        select:
+          options:
+            - burner
+            - deep_clean
+            - annual_service
+    confirm:
+      name: Confirm completion
+      required: true
+      selector:
+        boolean:

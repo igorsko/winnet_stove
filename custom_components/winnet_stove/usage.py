@@ -14,6 +14,10 @@ from .usage_logic import UsageTracker
 from .pellet_logic import pellet_stats, validate_setting
 from .auto_refill import AutoRefillDetector
 from .refill_log import ledger_stats, remove_event, update_event, valid_kg, validate_events
+from .insights_logic import (MAINTENANCE_DEFAULTS, calibrated_rate, daily_estimates,
+                             effective_rate, maintenance_remaining, valid_positive,
+                             profile_consumption)
+from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,11 +27,21 @@ class StoveUsage:
 
     def __init__(self, hass, entry_id: str, scan_interval: int):
         self.tracker = UsageTracker()
+        self._entry_id = entry_id
         self._store = Store(hass, 1, f"{DOMAIN}_{entry_id}_usage")
         self._max_gap = 2 * scan_interval + 10
         self._subscribers = set()
         self.refills = []
         self._legacy_bags = 0
+        self.working_by_day = {}
+        self.working_by_day_power = {}
+        self.power_rates = {str(i): 0.0 for i in range(1, 6)}
+        self.working_by_power = {}
+        self.maintenance_baselines = {key: 0.0 for key in MAINTENANCE_DEFAULTS}
+        self.maintenance_thresholds = dict(MAINTENANCE_DEFAULTS)
+        self.price_per_bag = 0.0
+        self._previous_working_power = None
+        self._last_maintenance_notification = {}
         self._legacy_auto_bags = 0
         self._hass = hass
         self._auto_detector = AutoRefillDetector()
@@ -56,6 +70,46 @@ class StoveUsage:
             self.auto_bags_loaded = 0
             self.last_auto_refill = None
         self.refills = validate_events(data.get('refills', []))
+        for name, value in data.get("power_rates", {}).items():
+            if name in self.power_rates:
+                try:
+                    rate = float(value)
+                    if 0 <= rate <= 20:
+                        self.power_rates[name] = rate
+                except (TypeError, ValueError):
+                    pass
+        for key, value in data.get("working_by_day", {}).items():
+            if isinstance(key, str) and isinstance(value, (int, float)) and 0 <= value < 1e12:
+                self.working_by_day[key] = value
+        for day, breakdown in data.get("working_by_day_power", {}).items():
+            if isinstance(day, str) and isinstance(breakdown, dict):
+                self.working_by_day_power[day] = {
+                    key: seconds for key, seconds in breakdown.items()
+                    if isinstance(key, str) and isinstance(seconds, (int, float))
+                    and 0 <= seconds < 1e10
+                }
+        for key, value in data.get("working_by_power", {}).items():
+            if isinstance(key, str) and isinstance(value, (int, float)) and 0 <= value < 1e12:
+                self.working_by_power[key] = value
+        for key in MAINTENANCE_DEFAULTS:
+            try:
+                self.maintenance_baselines[key] = max(
+                    0.0, float(data.get("maintenance_baselines", {}).get(key, 0.0))
+                )
+                self.maintenance_thresholds[key] = valid_positive(
+                    data.get("maintenance_thresholds", {}).get(key, MAINTENANCE_DEFAULTS[key])
+                )
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid maintenance setting for %s", key)
+        try:
+            raw_price = float(data.get("price_per_bag", 0))
+            if 0 <= raw_price <= 1000:
+                self.price_per_bag = raw_price
+        except (TypeError, ValueError):
+            pass
+        self._last_maintenance_notification = data.get("maintenance_notifications", {})
+        if not isinstance(self._last_maintenance_notification, dict):
+            self._last_maintenance_notification = {}
         self._legacy_last_auto_refill = data.get(
             "legacy_last_auto_refill", self.last_auto_refill
         )
@@ -77,6 +131,9 @@ class StoveUsage:
             self.tracker.operating_seconds = max(
                 0.0, float(data.get("operating_seconds", 0))
             )
+            if "maintenance_baselines" not in data:
+                for key in MAINTENANCE_DEFAULTS:
+                    self.maintenance_baselines[key] = self.tracker.operating_seconds / 3600
             timestamp = data.get("last_ignition")
             if timestamp:
                 parsed = datetime.fromisoformat(timestamp)
@@ -89,6 +146,14 @@ class StoveUsage:
         return {
             **self.pellet,
             "refills": self.refills,
+            "working_by_day": self.working_by_day,
+            "power_rates": self.power_rates,
+            "working_by_power": self.working_by_power,
+            "working_by_day_power": self.working_by_day_power,
+            "maintenance_baselines": self.maintenance_baselines,
+            "maintenance_thresholds": self.maintenance_thresholds,
+            "maintenance_notifications": self._last_maintenance_notification,
+            "price_per_bag": self.price_per_bag,
             "legacy_bags": self._legacy_bags,
             "legacy_auto_bags": self._legacy_auto_bags,
             "legacy_last_auto_refill": self._legacy_last_auto_refill,
@@ -113,6 +178,7 @@ class StoveUsage:
         """Observe a coordinator result, excluding unavailable samples."""
         if not coordinator.last_update_success or not coordinator.data:
             self.tracker.interrupt()
+            self._previous_working_power = None
             self._auto_detector.observe(None, None)
             return
         state = coordinator.data.get("registers", {}).get(6)
@@ -120,6 +186,7 @@ class StoveUsage:
             self.tracker.interrupt()
             self._auto_detector.observe(None, None)
             return
+        previous_operating = self.tracker.operating_seconds
         changed = self.tracker.observe(
             state & 0xFF, monotonic(), datetime.now(timezone.utc), self._max_gap
         )
@@ -151,14 +218,159 @@ class StoveUsage:
                     self._store.async_save(self._snapshot())
                 )
                 changed = True
+        # Accounting uses only consecutive observations of state 3. The
+        # existing tracker rejects offline gaps and invalid state mappings.
+        elapsed = self.tracker.operating_seconds - previous_operating
+        if elapsed > 0:
+            today = dt_util.as_local(datetime.now(timezone.utc)).date().isoformat()
+            self.working_by_day[today] = self.working_by_day.get(today, 0) + elapsed
+            if len(self.working_by_day) > 400:
+                for day in sorted(self.working_by_day)[:-400]:
+                    del self.working_by_day[day]
+                    self.working_by_day_power.pop(day, None)
+            # Label with the previously observed power; never infer power
+            # during a disconnected period.
+            power = self._previous_working_power
+            if power is not None:
+                key = str(power)
+                self.working_by_power[key] = self.working_by_power.get(key, 0) + elapsed
+                by_day = self.working_by_day_power.setdefault(today, {})
+                by_day[key] = by_day.get(key, 0) + elapsed
+            changed = True
+            self._notify_maintenance()
+        self._previous_working_power = registers.get(12) if state & 0xFF == 3 else None
         if changed:
             self._store.async_delay_save(self._snapshot, 60)
             for listener in tuple(self._subscribers):
                 listener()
 
     def pellet_statistics(self):
-        """Derived estimates; never claim actual measured pellet mass."""
-        return pellet_stats(self.tracker.operating_seconds, self.pellet)
+        """Derived estimates, with explicit provenance of the kg/h rate."""
+        stats = pellet_stats(self.tracker.operating_seconds, self.pellet)
+        rate, source = effective_rate(self.pellet["rate_kg_h"], self.refills)
+        profile_kg = profile_consumption(self.working_by_power, self.power_rates)
+        all_power_seconds = sum(self.working_by_power.values())
+        # Never treat a partly observed power distribution as complete.
+        if all_power_seconds < self.tracker.operating_seconds * 0.98:
+            profile_kg = None
+        if profile_kg is not None and self.tracker.operating_seconds > 0:
+            rate = profile_kg / (self.tracker.operating_seconds / 3600)
+            source = "configured_power_profile"
+        stats["rate_source"] = source
+        stats["effective_rate_kg_h"] = round(rate, 4) if rate is not None else None
+        if rate is not None:
+            hours = self.tracker.operating_seconds / 3600
+            weight = self.pellet["bag_weight_kg"]
+            stats.update(
+                pellet_used=profile_kg if source == "configured_power_profile" else round(hours * rate, 3),
+                estimated_bags=round(hours * rate / weight, 3),
+                bags_per_hour=round(rate / weight, 4),
+                hours_per_bag=round(weight / rate, 2),
+            )
+        stats["price_per_bag"] = self.price_per_bag
+        stats["cost_per_hour"] = (
+            round(rate / self.pellet["bag_weight_kg"] * self.price_per_bag, 3)
+            if rate is not None and self.price_per_bag > 0 else None
+        )
+        return stats
+
+    def daily_statistics(self):
+        """Local-day working hours, power-aware estimates where calibrated."""
+        stats = self.pellet_statistics()
+        rate = stats["effective_rate_kg_h"]
+        source = stats["rate_source"]
+        days = daily_estimates(self.working_by_day, rate,
+                               self.pellet["bag_weight_kg"], self.price_per_bag)
+        if source == "configured_power_profile":
+            for day in days:
+                power = self.working_by_day_power.get(day["date"], {})
+                estimated = profile_consumption(power, self.power_rates)
+                if sum(power.values()) < self.working_by_day.get(day["date"], 0) * 0.98:
+                    estimated = None
+                day["estimated_kg"] = estimated
+                day["estimated_cost"] = (
+                    round(estimated / self.pellet["bag_weight_kg"]
+                          * self.price_per_bag, 2)
+                    if estimated is not None and self.price_per_bag > 0 else None
+                )
+        return {
+            "days": days, "rate_source": source, "rate_kg_h": rate,
+            "power_hours": {key: round(seconds / 3600, 2)
+                            for key, seconds in self.working_by_power.items()},
+        }
+
+    def maintenance_statistics(self):
+        hours = self.tracker.operating_seconds / 3600
+        return {
+            key: {
+                "remaining_hours": maintenance_remaining(
+                    hours, self.maintenance_baselines[key], self.maintenance_thresholds[key]
+                ),
+                "interval_hours": self.maintenance_thresholds[key],
+                "since_reset_hours": round(max(0, hours - self.maintenance_baselines[key]), 2),
+            }
+            for key in MAINTENANCE_DEFAULTS
+        }
+
+    def _notify_maintenance(self):
+        """One persistent HA notification per maintenance cycle."""
+        from homeassistant.components import persistent_notification
+        for key, data in self.maintenance_statistics().items():
+            token = str(self.maintenance_baselines[key])
+            if data["remaining_hours"] <= 0 and self._last_maintenance_notification.get(key) != token:
+                persistent_notification.async_create(
+                    self._hass,
+                    f"WiNET Stove: {key.replace('_', ' ')} due after "
+                    f"{data['since_reset_hours']:.1f} hours.",
+                    title="WiNET Stove · Maintenance",
+                    notification_id=f"winnet_stove_{self._entry_id}_{key}",
+                )
+                self._last_maintenance_notification[key] = token
+
+    async def async_reset_maintenance(self, kind):
+        """User confirms completed work; hardware remains untouched."""
+        if kind not in MAINTENANCE_DEFAULTS:
+            raise ValueError("Unknown maintenance kind")
+        self.maintenance_baselines[kind] = self.tracker.operating_seconds / 3600
+        self._last_maintenance_notification.pop(kind, None)
+        await self._store.async_save(self._snapshot())
+        self._notify()
+
+    async def async_reset_legacy_bags(self):
+        """One-time correction, preserving detailed refill event history."""
+        self._legacy_bags = 0
+        self._legacy_auto_bags = 0
+        self._legacy_last_auto_refill = None
+        self._recount_refills()
+        await self._store.async_save(self._snapshot())
+        self._notify()
+
+    async def async_set_power_rate(self, level, value):
+        """Rate for a raw reported controller power level, not an assumed P number."""
+        if level not in self.power_rates:
+            raise ValueError("Unknown reported power level")
+        rate = float(value)
+        if not __import__("math").isfinite(rate) or not 0 <= rate <= 20:
+            raise ValueError("Invalid rate")
+        self.power_rates[level] = rate
+        await self._store.async_save(self._snapshot())
+        self._notify()
+
+    async def async_set_price(self, value):
+        """Update bag price for estimated expenses; 0 means unknown."""
+        price = float(value)
+        if price < 0 or price > 1000 or not __import__("math").isfinite(price):
+            raise ValueError("Invalid bag price")
+        self.price_per_bag = price
+        await self._store.async_save(self._snapshot())
+        self._notify()
+
+    async def async_set_threshold(self, kind, value):
+        if kind not in MAINTENANCE_DEFAULTS:
+            raise ValueError("Unknown maintenance kind")
+        self.maintenance_thresholds[kind] = valid_positive(value)
+        await self._store.async_save(self._snapshot())
+        self._notify()
 
     async def async_set_pellet(self, name, value):
         """Apply a user-supplied value, store it, and notify entities."""
@@ -171,7 +383,6 @@ class StoveUsage:
     def _recount_refills(self):
         """Keep legacy bag counts and new editable refill events separate."""
         full_bags = sum(
-            event["source"] == "auto" or
             abs(event["kg"] - event["bag_weight_kg"]) < 0.001
             for event in self.refills
         )
@@ -195,30 +406,33 @@ class StoveUsage:
         kg = valid_kg(kg)
         entry = {
             "id": str(uuid4()),
+            "runtime_h": round(self.tracker.operating_seconds / 3600, 6),
+            "full_hopper": False,
             "at": datetime.now(timezone.utc).isoformat(),
             "kg": kg,
             "bag_weight_kg": self.pellet["bag_weight_kg"],
             "source": source,
             "stock_debit": False,
         }
+        if len(self.refills) >= 5000:
+            raise ValueError("Refill history is full")
         # Only one full bag can debit whole-bag stock. A partial refill
         # has no reliable whole-bag stock impact.
         if abs(kg - self.pellet["bag_weight_kg"]) < 0.001 and self.pellet["bags_in_stock"] > 0:
             self.pellet["bags_in_stock"] -= 1
             entry["stock_debit"] = True
-        if len(self.refills) >= 5000:
-            raise ValueError('Refill history is full; export it before adding more')
         self.refills.append(entry)
         self._recount_refills()
         return entry
 
-    async def async_record_refill(self, kg):
+    async def async_record_refill(self, kg, full_hopper=False):
         """Add manual pellet in kilograms and immediately persist the ledger."""
-        self._append_refill(kg, "manual")
+        event = self._append_refill(kg, "manual")
+        event["full_hopper"] = full_hopper is True
         await self._store.async_save(self._snapshot())
         self._notify()
 
-    async def async_edit_refill(self, event_id, kg):
+    async def async_edit_refill(self, event_id, kg, full_hopper=None):
         """Correct a recorded quantity, including false automatic inferences."""
         event = next((e for e in self.refills if e["id"] == event_id), None)
         if event is None:
@@ -230,6 +444,8 @@ class StoveUsage:
         self.refills = update_event(self.refills, event_id, valid)
         corrected = next(e for e in self.refills if e["id"] == event_id)
         corrected["stock_debit"] = False
+        if full_hopper is not None:
+            corrected["full_hopper"] = full_hopper is True
         if (
             abs(corrected["kg"] - corrected["bag_weight_kg"]) < 0.001
             and self.pellet["bags_in_stock"] > 0

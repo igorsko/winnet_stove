@@ -5,6 +5,7 @@ class WinetStovePanel extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._last = "";
+    this._activeTab = "control";
     this._refillDraft = null;
     this._uiMessage = "";
   }
@@ -65,13 +66,26 @@ class WinetStovePanel extends HTMLElement {
         ["Estimated bags used", m.pellet_estimated_bags],
         ["Auto-refill detection", m.pellet_auto_refill],
         ["Bags per hour", m.pellet_bags_per_hour],
-        ["Hours per bag", m.pellet_hours_per_bag]
+        ["Hours per bag", m.pellet_hours_per_bag],
+        ["Estimated today", m.insights_today_pellet],
+        ["Cost today", m.insights_today_cost],
+        ["Cost this month", m.insights_month_cost],
+        ["Calibrated / average rate", m.insights_effective_rate]
       ];
       const pelletNumbers = [
         ["Initial hours", m.pellet_setting_initial_hours],
         ["Bag weight", m.pellet_setting_bag_weight_kg],
         ["Average consumption", m.pellet_setting_rate_kg_h],
-        ["Bags in stock", m.pellet_setting_bags_in_stock]
+        ["Bags in stock", m.pellet_setting_bags_in_stock],
+        ["Price per bag", m.pellet_setting_price_per_bag],
+        ["Burner cleaning interval", m.maintenance_interval_burner],
+        ["Deep cleaning interval", m.maintenance_interval_deep_clean],
+        ["Annual service interval", m.maintenance_interval_annual_service],
+        ["Reported power 1 (kg/h)", m.power_rate_1],
+        ["Reported power 2 (kg/h)", m.power_rate_2],
+        ["Reported power 3 (kg/h)", m.power_rate_3],
+        ["Reported power 4 (kg/h)", m.power_rate_4],
+        ["Reported power 5 (kg/h)", m.power_rate_5]
       ];
       const pelletReadings = pelletMetrics.filter(([_, id]) => id).map(([label, id]) =>
         `<div class="metric"><span>${this.escape(label)}</span><strong>${this.format(id)}</strong></div>`
@@ -96,7 +110,8 @@ class WinetStovePanel extends HTMLElement {
           <div class="row-actions">
             <button class="secondary mini" data-refill-edit="${this.escape(event.id)}"
               data-entry="${this.escape(stove.entry_id)}"
-              data-kg="${this.escape(event.kg)}">Edit</button>
+              data-kg="${this.escape(event.kg)}"
+            data-full="${event.full_hopper ? "true" : "false"}">Edit</button>
             <button class="secondary mini" data-refill-delete="${this.escape(event.id)}"
               data-entry="${this.escape(stove.entry_id)}">Delete</button>
           </div>
@@ -115,14 +130,36 @@ class WinetStovePanel extends HTMLElement {
           </div>
           ${refillRows || '<p class="hint">No refills registered yet.</p>'}
         </div>` : "";
-      const pelletCard = (pelletReadings || pelletSettings || refillCard) ? `
-        <section class="pellet">
-          <h3>Pellet and operating hours</h3>
-          <p class="hint">Consumption is estimated from confirmed operating time and the average kg/h you configure. Loaded bags are logged separately.</p>
-          <div class="metrics">${pelletReadings}</div>
-          <div class="settings">${pelletSettings}</div>
-          ${refillCard}
-        </section>` : "";
+      const maintenance = [
+        ["Burner cleaning", "burner", m.insights_maintenance_burner],
+        ["Deep cleaning", "deep_clean", m.insights_maintenance_deep_clean],
+        ["Annual service", "annual_service", m.insights_maintenance_annual_service]
+      ].map(([title, key, entity]) => `
+        <div class="maintenance-item">
+          <div><strong>${this.escape(title)}</strong><br>
+          <small>${entity ? this.format(entity) : "—"} until due</small></div>
+          <button class="secondary" data-maint-kind="${this.escape(key)}"
+            data-entry="${this.escape(stove.entry_id)}">Completed</button>
+        </div>`).join("");
+      const fullRateId = m.insights_effective_rate;
+      const rateSource = fullRateId
+        ? this._hass.states?.[fullRateId]?.attributes?.source
+        : null;
+      const dailyHistory = m.insights_month_cost
+        ? this._hass.states?.[m.insights_month_cost]?.attributes?.daily_history || []
+        : [];
+      const dailyRows = dailyHistory.slice(-10).reverse().map(day =>
+        `<div class="refill-row"><span>${this.escape(day.date)}</span>
+          <strong>${this.escape(day.working_h)} h ·
+          ${day.estimated_kg == null ? "—" : this.escape(day.estimated_kg) + " kg"} ·
+          ${day.estimated_cost == null ? "—" : this.escape(day.estimated_cost) + " €"}</strong>
+        </div>`).join("");
+      const powerData = m.insights_power_profile
+        ? this._hass.states?.[m.insights_power_profile]?.attributes?.power_hours || {}
+        : {};
+      const powerRows = Object.entries(powerData).map(([key, hours]) =>
+        `<div class="metric"><span>Power ${this.escape(key)}</span>
+        <strong>${this.escape(hours)} h</strong></div>`).join("");
       const temp = current?.attributes?.current_temperature;
       return `
         <section class="stove">
@@ -130,10 +167,40 @@ class WinetStovePanel extends HTMLElement {
             <div><span class="eyebrow">WI-FI PELLET STOVE</span><h2>${this.escape(stove.title || "WiNET Stove " + (index + 1))}</h2></div>
             <span class="status ${isOn ? "on" : ""}">${this.escape(mode)}</span>
           </div>
-          <div class="temperature"><span>Room temperature</span><strong>${temp == null ? "—" : this.escape(temp) + " °C"}</strong></div>
-          <div class="metrics">${rows}</div>
-          ${buttons}
-          ${pelletCard}
+          <section class="tab-content" ${this._activeTab !== "control" ? "hidden" : ""}>
+            <div class="temperature"><span>Room temperature</span><strong>${temp == null ? "—" : this.escape(temp) + " °C"}</strong></div>
+            <div class="metrics">${rows}</div>
+            ${buttons}
+          </section>
+          <section class="tab-content" ${this._activeTab !== "consumption" ? "hidden" : ""}>
+            <h3>Consumption and costs</h3>
+            <p class="hint">Estimates, not measured pellet. Source: ${this.escape(rateSource || "unconfigured")}.
+              Mark the hopper as full on two refills at the same level to calibrate an average consumption rate.</p>
+            <div class="metrics">${pelletReadings}</div>
+            <h4>Last 10 days</h4>${dailyRows || '<p class="hint">No tracked burning yet.</p>'}
+            <h4>Burning hours per reported power</h4>
+            <div class="metrics">${powerRows || '<p class="hint">No valid power samples yet.</p>'}</div>
+          </section>
+          <section class="tab-content" ${this._activeTab !== "refills" ? "hidden" : ""}>
+            ${refillCard}
+          </section>
+          <section class="tab-content" ${this._activeTab !== "maintenance" ? "hidden" : ""}>
+            <h3>Maintenance</h3>
+            <p class="hint">Suggested intervals based on observed burning hours.
+            Follow the stove manufacturer's maintenance instructions.</p>
+            ${maintenance}
+          </section>
+          <section class="tab-content" ${this._activeTab !== "settings" ? "hidden" : ""}>
+            <h3>Pellet and maintenance settings</h3>
+            <p class="hint">Tap an item to modify it. Changes affect only Home Assistant accounting. Reported power rates are optional: zero means unconfigured. Values must be calibrated for your stove.</p>
+            <div class="settings">${pelletSettings}</div>
+            <div class="controls">
+              <button class="secondary" data-reset-legacy="${this.escape(stove.entry_id)}">
+                Reset legacy bag counter
+              </button>
+            </div>
+            <p class="hint">This resets only the historical bag count, not detailed refill records.</p>
+          </section>
         </section>`;
     }).join("");
     const draft = this._refillDraft;
@@ -151,6 +218,7 @@ class WinetStovePanel extends HTMLElement {
             <option value="bags" ${draft.unit === "bags" ? "selected" : ""}>bags</option>
           </select>
         </div>
+        <label class="full-check"><input type="checkbox" id="refill-full" ${draft.full ? "checked" : ""}> Serbatoio riportato a pieno (per calibrare il consumo)</label>
         <p class="hint">One bag = ${this.escape(draft.weight)} kg.
         The quantity is converted to kilograms before saving.</p>
         <p class="refill-error" role="alert">${this.escape(this._uiMessage)}</p>
@@ -164,6 +232,12 @@ class WinetStovePanel extends HTMLElement {
         :host { display: block; color: var(--primary-text-color); background: var(--primary-background-color); min-height: 100%; }
         * { box-sizing: border-box; }
         .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 20px 64px; font-family: var(--paper-font-body1_-_font-family, sans-serif); }
+        .tab-content[hidden] { display:none !important; }
+        .tabs {display:flex; gap:7px; overflow-x:auto; margin:0 0 16px; padding:0 0 8px; }
+        .tabs button {white-space:nowrap; padding:10px 14px; border-radius:999px; background:var(--secondary-background-color); color:var(--primary-text-color); }
+        .tabs button.selected {background:var(--primary-color); color:var(--text-primary-color,white);}
+        .maintenance-item {display:flex;justify-content:space-between;align-items:center;gap:10px;padding:15px 0;border-bottom:1px solid var(--divider-color);}
+        .maintenance-item small {color:var(--secondary-text-color);}
         .header { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 26px; }
         h1 { margin: 4px 0; font-size: 28px; letter-spacing: -.5px; }
         h2 { margin: 6px 0 0; font-size: 19px; }
@@ -209,6 +283,7 @@ class WinetStovePanel extends HTMLElement {
         .refill-input input,.refill-input select { background:var(--secondary-background-color);
           color:var(--primary-text-color); border:1px solid var(--divider-color);
           border-radius:8px; padding:10px; font:inherit; }
+        .full-check {display:flex;align-items:center;gap:9px;margin-top:16px;font-size:13px;}
         .refill-error { color:var(--error-color,#ba2630); font-size:13px; }
         @media(max-width:500px) { .refill-head { align-items:start; flex-direction:column; } }
         button { border: none; border-radius: 12px; padding: 13px 20px; color: var(--text-primary-color, white);
@@ -221,8 +296,16 @@ class WinetStovePanel extends HTMLElement {
       <main class="wrap">\n        ${modal}
         <div class="header">
           <div><span class="eyebrow">SMART HEATING</span><h1>WiNET Stove</h1></div>
-          <a class="small-link" href="/winnet-stove-dashboard">Lovelace dashboard</a>
+          ${this._panel.config?.lovelace_available ? '<a class="small-link" href="/winnet-stove-dashboard">Lovelace dashboard</a>' : ""}
         </div>
+        <nav class="tabs" aria-label="WiNET Stove sections">
+          ${[
+            ["control", "Control"], ["consumption", "Consumption"],
+            ["refills", "Refills"], ["maintenance", "Maintenance"],
+            ["settings", "Settings"],
+          ].map(([id,label]) => `<button data-tab="${id}" class="${this._activeTab===id ? "selected" : ""}"
+             aria-current="${this._activeTab===id ? "page" : "false"}">${label}</button>`).join("")}
+        </nav>
         ${blocks || '<p class="empty">No active WiNET Stove devices found.</p>'}
       </main>`;
     if (html !== this._last) {
@@ -232,14 +315,44 @@ class WinetStovePanel extends HTMLElement {
       const wasOpen = !!previous?.open;
       const typed = wasOpen ? previous.querySelector("#refill-qty")?.value : null;
       const unit = wasOpen ? previous.querySelector("#refill-unit")?.value : null;
+      const full = wasOpen ? previous.querySelector("#refill-full")?.checked : null;
       this._last = html;
       this.shadowRoot.innerHTML = html;
       const restored = this.shadowRoot.querySelector(".refill-dialog");
       if (wasOpen && restored) {
         if (typed !== null) restored.querySelector("#refill-qty").value = typed;
         if (unit) restored.querySelector("#refill-unit").value = unit;
+        if (full !== null) restored.querySelector("#refill-full").checked = full;
         restored.showModal();
       }
+      this.shadowRoot.querySelectorAll("button[data-tab]").forEach(button => {
+        button.addEventListener("click", () => {
+          this._activeTab = button.dataset.tab;
+          this._last = "";
+          this.render();
+        });
+      });
+      this.shadowRoot.querySelectorAll("button[data-reset-legacy]").forEach(button => {
+        button.addEventListener("click", async () => {
+          if (!window.confirm("Reset the old bag count? Detailed refill history is kept.")) return;
+          try {
+            await this._hass.callService("winnet_stove", "reset_legacy_bags", {
+              entry_id: button.dataset.resetLegacy, confirm: true
+            });
+          } catch (error) { window.alert(String(error.message || error)); }
+        });
+      });
+      this.shadowRoot.querySelectorAll("button[data-maint-kind]").forEach(button => {
+        button.addEventListener("click", async () => {
+          if (!window.confirm("Confirm this maintenance was completed?")) return;
+          try {
+            await this._hass.callService("winnet_stove", "complete_maintenance", {
+              entry_id: button.dataset.entry, kind: button.dataset.maintKind,
+              confirm: true
+            });
+          } catch (error) { window.alert(String(error.message || error)); }
+        });
+      });
       this.shadowRoot.querySelectorAll("button[data-refill-new]").forEach(button => {
         button.addEventListener("click", () => this.openRefillDialog({
           entry: button.dataset.refillNew,
@@ -250,13 +363,15 @@ class WinetStovePanel extends HTMLElement {
             stoves.find(s => s.entry_id === button.dataset.refillNew)?.entities?.pellet_setting_bag_weight_kg
           ]?.state || "15",
           unit: "kg",
-          id: null
+          id: null,
+          full: false
         }));
       });
       this.shadowRoot.querySelectorAll("button[data-refill-edit]").forEach(button => {
         button.addEventListener("click", () => this.openRefillDialog({
           entry: button.dataset.entry,
           id: button.dataset.refillEdit,
+          full: button.dataset.full === "true",
           quantity: button.dataset.kg,
           weight: this._hass.states?.[
             stoves.find(s => s.entry_id === button.dataset.entry)?.entities?.pellet_setting_bag_weight_kg
@@ -303,7 +418,8 @@ class WinetStovePanel extends HTMLElement {
           const service = this._refillDraft.id ? "edit_refill" : "record_refill";
           const data = {
             entry_id: this._refillDraft.entry,
-            quantity_kg: kg
+            quantity_kg: kg,
+            full_hopper: this.shadowRoot.querySelector("#refill-full")?.checked === true
           };
           if (this._refillDraft.id) data.refill_id = this._refillDraft.id;
           await this._hass.callService("winnet_stove", service, data);
