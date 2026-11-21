@@ -13,8 +13,7 @@ With WiNET Stove you can check whether your stove is running, see its reported t
 **WiNET is a controller/module, not a stove brand.** WiNET modules are documented or sold for selected pellet stove models from brands including:
 
 - **Thermorossi** — **Slimquadro 9 Evo** is the model used to develop and test this integration.
-- **La Nordica / Extraflame**, **Edilkamin**, **Cadel**, **Klover** and **Piazzetta** — listed by WiNET module suppliers as compatible with selected models; check the controller and your specific stove model.
-- **Invicta** — an [Invicta appliance manual](https://www.invicta.fr/wp-content/uploads/2024/08/LODI-Etanche2-6-8-Wi-Fi-SDCENv04_07-25p.pdf) documents a WiNET Wi-Fi module.
+- **La Nordica / Extraflame**, **Edilkamin**, **Cadel**, **Klover** and **Piazzetta** — WiNET module suppliers list selected stove models as compatible with the module. This does not mean those stoves already have WiNET installed; check your specific model and Wi-Fi accessory.
 
 Sources for WiNET module/model listings: [WiFi-Stufe compatibility catalogue](https://www.wifi-stufe.com/compatibilita) and [StufaSmart's manufacturer list](https://stufasmart.it/marchi-e-stufe-combatibili/).
 
