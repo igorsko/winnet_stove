@@ -47,6 +47,8 @@ async def async_setup_entry(
         StoveUsageSensor(hass.data[DOMAIN][entry.entry_id]['usage'], entry, 'session'),
         StoveUsageSensor(hass.data[DOMAIN][entry.entry_id]['usage'], entry, 'last_ignition'),
         StoveUsageSensor(hass.data[DOMAIN][entry.entry_id]['usage'], entry, 'total'),
+        *[StovePelletSensor(hass.data[DOMAIN][entry.entry_id]['usage'], entry, kind)
+          for kind in ('total_hours', 'bags_loaded', 'pellet_used', 'bags_per_hour', 'hours_per_bag', 'estimated_bags')],
     ]
     
     async_add_entities(sensors)
@@ -447,3 +449,50 @@ class StoveUsageSensor(SensorEntity):
         if self._kind == "last_ignition":
             return tracker.last_ignition
         return round(tracker.operating_seconds / 3600, 3)
+
+class StovePelletSensor(SensorEntity):
+    """Manual pellet events and clearly labelled consumption estimates."""
+
+    _attr_has_entity_name = True
+    _CONFIG = {
+        "total_hours": ("Total stove hours incl. initial", "h", "mdi:timer"),
+        "bags_loaded": ("Pellet bags loaded", "bags", "mdi:bag-personal"),
+        "pellet_used": ("Estimated pellet consumed", "kg", "mdi:scale"),
+        "bags_per_hour": ("Estimated bags per hour", "bags/h", "mdi:chart-line"),
+        "hours_per_bag": ("Estimated hours per bag", "h/bag", "mdi:clock-outline"),
+        "estimated_bags": ("Estimated bags consumed", "bags", "mdi:chart-areaspline"),
+    }
+
+    def __init__(self, usage, entry, kind):
+        self._usage = usage
+        self._kind = kind
+        name, unit, icon = self._CONFIG[kind]
+        self._attr_name = name
+        self._attr_unique_id = f"{entry.entry_id}_pellet_{kind}"
+        self._attr_native_unit_of_measurement = unit
+        self._attr_icon = icon
+        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        if kind == "bags_loaded":
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        elif kind in ("pellet_used", "estimated_bags"):
+            self._attr_state_class = SensorStateClass.TOTAL
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self.async_on_remove(self._usage.async_subscribe(self.async_write_ha_state))
+
+    @property
+    def native_value(self):
+        values = self._usage.pellet_statistics()
+        return values[self._kind]
+
+    @property
+    def extra_state_attributes(self):
+        if self._kind not in ("pellet_used", "estimated_bags", "bags_per_hour", "hours_per_bag"):
+            return None
+        return {
+            "calculation": "estimated_from_confirmed_working_time",
+            "rate_kg_h": self._usage.pellet["rate_kg_h"],
+            "bag_weight_kg": self._usage.pellet["bag_weight_kg"],
+            "measured_not_actual": True,
+        }
