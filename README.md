@@ -2,9 +2,25 @@
 
 [![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue)](LICENSE)
 
-**WiNET Stove** is a custom Home Assistant integration for pellet stoves using a compatible **WiNET Wi-Fi controller**. It communicates locally over HTTP without relying on a cloud account.
+## Bring your pellet stove into your smart home
 
-> **Compatibility:** tested only on **Thermorossi Slimquadro 9 Evo**. WiNET hardware may appear on other stove brands, but support for other makes and models is unverified. Register mappings and commands may differ.
+Already have a pellet stove with a **WiNET Wi-Fi module**? **WiNET Stove** helps you connect it to **Home Assistant** so you can see what the stove is doing and control supported functions from the same place as the rest of your home — without relying on a cloud account for everyday communication.
+
+With WiNET Stove you can check whether your stove is running, see its reported temperature and operating status, view alarms, and turn it on or off using Home Assistant. It is designed for people who want a simpler, more connected heating experience, while keeping the stove's built-in controls and safety systems in charge.
+
+### Could it work with my stove?
+
+**WiNET is a controller/module, not a stove brand.** WiNET modules are documented or sold for selected pellet stove models from brands including:
+
+- **Thermorossi** — **Slimquadro 9 Evo** is the model used to develop and test this integration.
+- **La Nordica / Extraflame**, **Edilkamin**, **Cadel**, **Klover** and **Piazzetta** — listed by WiNET module suppliers as compatible with selected models; check the controller and your specific stove model.
+- **Invicta** — an [Invicta appliance manual](https://www.invicta.fr/wp-content/uploads/2024/08/LODI-Etanche2-6-8-Wi-Fi-SDCENv04_07-25p.pdf) documents a WiNET Wi-Fi module.
+
+Sources for WiNET module/model listings: [WiFi-Stufe compatibility catalogue](https://www.wifi-stufe.com/compatibilita) and [StufaSmart's manufacturer list](https://stufasmart.it/marchi-e-stufe-combatibili/).
+
+> **Important distinction:** these references establish **WiNET module use or compatibility**, **not confirmed compatibility with this Home Assistant integration**. The plugin has been **tested only on Thermorossi Slimquadro 9 Evo**. Different controller firmware, register mappings and commands may require additional work. Do not issue unverified commands to another stove.
+
+**Not sure?** Look for WiNET in the documentation of your stove or its Wi-Fi accessory, and [open an issue](https://github.com/igorsko/winnet_stove/issues) with the **stove brand, model and WiNET controller details** (never share passwords or personal network information). Community testing can help expand the list of verified devices.
 
 ## Features
 
