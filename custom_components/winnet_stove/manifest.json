@@ -1,14 +1,13 @@
 {
   "domain": "winnet_stove",
   "name": "WiNET Stove",
-  "documentation": "https://github.com/igorsko/winnet_stove",
   "codeowners": [
     "@igorsko"
   ],
-  "requirements": [
-    "aiohttp>=3.8.0"
-  ],
-  "version": "1.0.1",
   "config_flow": true,
-  "iot_class": "local_polling"
+  "documentation": "https://github.com/igorsko/winnet_stove",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/igorsko/winnet_stove/issues",
+  "requirements": [],
+  "version": "1.0.1"
 }

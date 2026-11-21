@@ -1,0 +1,55 @@
+name: Validate integration
+on:
+  push:
+    branches:
+      - main
+      - "fix/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-syntax:
+    name: Python syntax and metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Compile sources
+        run: python -m compileall -q custom_components/winnet_stove
+      - name: Check manifest, domain, and config flow strings
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("custom_components/winnet_stove")
+          manifest = json.loads((root / "manifest.json").read_text())
+          assert manifest["domain"] == root.name
+          assert manifest["issue_tracker"] == "https://github.com/igorsko/winnet_stove/issues"
+          assert manifest["version"]
+          json.loads(Path("hacs.json").read_text())
+          strings = json.loads((root / "strings.json").read_text())
+          assert "https://" not in strings["config"]["step"]["user"]["description"]
+          print("Metadata checks passed")
+          PY
+
+  hassfest:
+    name: Home Assistant hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+          ignore: brands
