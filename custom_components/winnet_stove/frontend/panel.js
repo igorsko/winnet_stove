@@ -606,13 +606,6 @@ class WinetStovePanel extends HTMLElement {
               </div>
               <div>${this.icon("wifi")}${rssiValue}</div>
             </div>
-            <details class="more-info"><summary>${this.icon("sliders")}${this.tr("technical")}</summary>
-              <div class="technical-rows">
-                ${m.state ? `<div><span>${this.tr("state")}</span><strong>${this.format(m.state)}</strong></div>` : ""}
-                ${m.crono && !cronoId ? `<div><span>${this.tr("schedule")}</span><strong>${this.format(m.crono)}</strong></div>` : ""}
-                ${m.rssi ? `<div><span>${this.tr("wifi")}</span><strong>${rssiValue}</strong></div>` : ""}
-              </div>
-            </details>
           </section>
           <section class="tab-content" ${this._activeTab !== "consumption" ? "hidden" : ""}>
             <div class="section-intro">
@@ -762,17 +755,26 @@ class WinetStovePanel extends HTMLElement {
           font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;
           color:var(--primary-text-color);white-space:nowrap;}
         .target-control .inline-stepper output {min-width:80px;}
-        .inline-stepper button {flex:0 0 auto;min-width:39px;min-height:39px;
-          border-radius:10px;padding:6px 9px;font-size:21px;line-height:1;}
+        .inline-stepper button {display:inline-flex;align-items:center;justify-content:center;
+          flex:0 0 auto;width:42px;height:42px;min-width:42px;min-height:42px;
+          border:1px solid var(--divider-color);border-radius:11px;padding:0;
+          font-size:22px;font-weight:600;line-height:1;
+          background:var(--secondary-background-color);color:var(--primary-text-color);
+          cursor:pointer;transition:background .15s ease,border-color .15s ease;}
+        .inline-stepper button:hover:not(:disabled) {
+          border-color:var(--primary-color);background:var(--card-background-color);}
+        .inline-stepper button:focus-visible {
+          outline:2px solid var(--primary-color);outline-offset:2px;}
+        .inline-stepper button:disabled {opacity:.4;cursor:not-allowed;}
         .support-reading .inline-stepper {flex-direction:row;gap:6px;}
         .support-reading .inline-stepper output {font-size:21px;min-width:30px;}
-        .support-reading .inline-stepper button {min-width:34px;min-height:36px;}
+        .support-reading .inline-stepper button {width:42px;height:42px;min-width:42px;min-height:42px;}
         @media(max-width:680px) {
           .hero-reading {padding:18px 14px;gap:9px;flex-wrap:wrap;}
           .hero-reading .hero-symbol .ico {width:28px;height:28px;}
           .support-reading {flex-wrap:wrap;gap:9px;}
           .inline-stepper {gap:4px;}
-          .inline-stepper button {min-width:36px;min-height:36px;padding:6px;}
+          .inline-stepper button {width:42px;height:42px;min-width:42px;min-height:42px;}
           .target-control .inline-stepper output {min-width:69px;font-size:17px;}
         }
         .crono-control {display:flex;align-items:center;justify-content:space-between;gap:16px;
