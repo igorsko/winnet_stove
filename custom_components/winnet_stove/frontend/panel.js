@@ -404,7 +404,7 @@ class WinetStovePanel extends HTMLElement {
         [this.tr("pilotFan"), pilotFanId],
       ].filter(([_, id]) => Boolean(id)).map(([label, id]) => {
         const value = Number(this._hass.states?.[id]?.state);
-        const valid = Number.isInteger(value) && value >= 1 && value <= 5;
+        const valid = Number.isInteger(value) && value >= 1 && value <= 5 && this._hass.states?.[id]?.state !== "unavailable";
         return `<div class="pilot-row"><label>${this.escape(label)}</label>
           <div class="pilot-stepper">
             <button type="button" class="secondary" data-pilot-step="${this.escape(id)}"
@@ -416,7 +416,7 @@ class WinetStovePanel extends HTMLElement {
               ${!valid || value >= 5 ? "disabled" : ""}>+</button>
           </div></div>`;
       }).join("");
-      const validTarget = Number.isFinite(targetValue) && targetValue >= 15 && targetValue <= 30;
+      const validTarget = Number.isFinite(targetValue) && targetValue >= 15 && targetValue <= 30 && Number.isInteger(targetValue * 2);
       const pilotTarget = climate && current && validTarget
         ? `<div class="pilot-row"><label>${this.tr("pilotTarget")}</label>
           <div class="pilot-stepper">

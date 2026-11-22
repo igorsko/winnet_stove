@@ -21,6 +21,13 @@ class CapturedControlsTest(unittest.TestCase):
         self.assertEqual(controls.encode_target(15.0), 132)
         self.assertEqual(controls.encode_target(30.0), 192)
         self.assertEqual(controls.encode_target(22.0), 160)
+        self.assertEqual(controls.encode_target(20.0), 152)
+        self.assertEqual(controls.encode_target(20.5), 154)
+        # All supported half-degree targets round-trip through the register.
+        for half_step in range(30, 61):
+            target = half_step / 2
+            raw = controls.encode_target(target)
+            self.assertEqual(controls.read_target({15: raw}), target)
 
     def test_reject_out_of_range_or_invalid_setpoints(self):
         for value in (14.5, 30.5, 21.25, float("nan"), float("inf"), "", None):

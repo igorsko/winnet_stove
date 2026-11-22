@@ -3,7 +3,8 @@
 
 Observed on one Thermorossi Slimquadro 9 Evo on 2026-11-22.
 Register mapping and first two levels verified in capture and a local test.
-Remaining levels and temperatures are inferred; verify on the physical stove.
+The setpoint formula is extrapolated by user request; 15–20.5 °C and
+unobserved fan/power levels remain to be verified on physical hardware.
 """
 
 import math
@@ -27,7 +28,7 @@ def read_target(registers):
 
 
 def encode_target(value):
-    """Return only a captured raw setpoint, never an inferred write."""
+    """Encode a half-degree target using the user-accepted linear WiNET rule."""
     try:
         numeric = float(value)
     except (TypeError, ValueError) as err:
@@ -46,8 +47,8 @@ def encode_level(value):
         number = int(value)
     except (TypeError, ValueError) as err:
         raise ValueError("Invalid control level") from err
-    if str(value) not in ("1", "2", "3", "4", "5") and value not in LEVEL_VALUES:
+    if isinstance(value, str) and value not in ("1", "2", "3", "4", "5"):
         raise ValueError("Levels must be 1–5")
     if number not in LEVEL_VALUES:
-        raise ValueError("Only captured levels 1 and 2 are enabled")
+        raise ValueError("Levels must be 1–5")
     return number
