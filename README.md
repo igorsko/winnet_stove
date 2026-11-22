@@ -203,3 +203,18 @@ Licensed under the **GNU General Public License version 3 only** (`GPL-3.0-only`
 ## Support the project
 
 If you find this integration useful, [star the repository](https://github.com/igorsko/winnet_stove), [buy me a coffee](https://www.buymeacoffee.com/igorsko), or [donate via PayPal](https://www.paypal.me/igorskorjanc).
+
+## Frontend refresh after updates
+
+The dedicated WiNET panel URL is `/winnet-stove`; the optional, user-editable
+Lovelace dashboard URL is `/winnet-stove-dashboard`. These are **different UIs**.
+
+Since v1.2.1 the dedicated panel loads its JavaScript using a release-versioned
+module URL (for example, `/api/winnet_stove/panel.js?v=1.2.1`) to avoid stale
+ES-module imports across updates. After updating with HACS, **restart Home
+Assistant and reload the browser tab**. If the screen still looks unchanged,
+check the browser URL: `/winnet-stove-dashboard` displays the independently
+editable legacy Lovelace view, which is intentionally not overwritten.
+
+The manifest version and `manifest_version.py` version must be kept in sync
+when publishing future releases.
