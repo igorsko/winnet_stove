@@ -72,6 +72,25 @@ actions, maintenance keeps its hour-based progress bars, and settings retain
 collapsed advanced calibration and diagnostics. No new controller register
 writes, dependencies, or non-measured sensor claims were added.
 
+## Integration icon
+
+WiNET Stove includes an original flame-and-Wi-Fi brand icon with a transparent
+background, available at 256 × 256 and 512 × 512 pixels:
+
+- `custom_components/winnet_stove/brand/icon.png`
+- `custom_components/winnet_stove/brand/icon@2x.png`
+
+Home Assistant **2026.3 or later** reads these brand images directly from the
+installed custom integration. The square icon also serves as the integration
+logo when a separate wide logo is not provided. Brand icons require no extra
+frontend dependencies and are suitable for both light and dark backgrounds.
+
+Some HACS versions have not displayed integration-local icons correctly,
+even when they work in Home Assistant's Integrations page. HACS presentation
+depends on the installed HACS version and its icon source; a placeholder
+there does not necessarily mean that the integration's icon is missing.
+After upgrading, restart Home Assistant and refresh HACS.
+
 ## Dashboard language and user experience
 
 The WiNET Stove dedicated panel supports **Italian and English**, automatically following
