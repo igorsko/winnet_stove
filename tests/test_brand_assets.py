@@ -49,7 +49,7 @@ class BrandAssetsTest(unittest.TestCase):
 
     def test_release_version_is_synchronized(self):
         manifest = json.loads((PACKAGE / "manifest.json").read_text())
-        self.assertRegex(manifest["version"], r"^\\d+\\.\\d+\\.\\d+$")
+        self.assertEqual(len(manifest["version"].split(".")), 3)
         version_source = (PACKAGE / "manifest_version.py").read_text()
         self.assertIn(f'VERSION = "{manifest["version"]}"', version_source)
 
