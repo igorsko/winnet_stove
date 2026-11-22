@@ -16,6 +16,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
+from .manifest_version import VERSION
 
 _LOGGER = logging.getLogger(__name__)
 PANEL_PATH = "winnet-stove"
@@ -149,7 +150,10 @@ async def async_update_ui(hass):
                 hass,
                 frontend_url_path=PANEL_PATH,
                 webcomponent_name="winnet-stove-panel",
-                module_url=PANEL_JS,
+                # Browser caches ES modules by their complete URL. Version the
+                # module import, not the static file route, to force a fresh
+                # frontend after an integration update and HA restart.
+                module_url=f"{PANEL_JS}?v={VERSION}",
                 sidebar_title="WiNET Stove",
                 sidebar_icon="mdi:fire",
                 config=_panel_config(entries, _entities(hass, entries)),
