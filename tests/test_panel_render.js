@@ -36,7 +36,7 @@ panel.panel = {
     lovelace_available: true,
     stoves: [{
       entry_id: "test-entry",
-      title: "Test stove",
+      title: "Test stove (192.168.2.140)",
       entities: {
         climate: "climate.test",
         state: "sensor.test_state",
@@ -67,7 +67,8 @@ panel.hass = {
 assert.match(panel.shadowRoot.innerHTML, /WiNET Stove/);
 assert.match(panel.shadowRoot.innerHTML, /data-tab="consumption"/);
 assert.match(panel.shadowRoot.innerHTML, /data-tab="maintenance"/);
-assert.match(panel.shadowRoot.innerHTML, /In Funzione/);
+assert.match(panel.shadowRoot.innerHTML, /Running/);
+assert.doesNotMatch(panel.shadowRoot.innerHTML, /192\\.168\\.2\\.140/);
 assert.match(panel.shadowRoot.innerHTML, /Lovelace dashboard/);
 panel._activeTab = "consumption";
 panel._last = "";
@@ -78,4 +79,35 @@ panel._last = "";
 panel.render();
 assert.match(panel.shadowRoot.innerHTML, /Record refill/);
 assert.match(panel.shadowRoot.innerHTML, /15 kg/);
+
+// Home Assistant language must localize the same panel and retain English
+// as the fallback for other language codes.
+panel.hass = { ...panel._hass, locale: { language: "it" } };
+panel._activeTab = "control";
+panel._last = "";
+panel.render();
+assert.match(panel.shadowRoot.innerHTML, /Controllo/);
+assert.match(panel.shadowRoot.innerHTML, /In funzione/);
+assert.match(panel.shadowRoot.innerHTML, /Temperatura ambiente/);
+panel._activeTab = "consumption";
+panel._last = "";
+panel.render();
+assert.match(panel.shadowRoot.innerHTML, /Consumi e costi/);
+assert.match(panel.shadowRoot.innerHTML, /Configura il consumo del pellet/);
+panel._activeTab = "refills";
+panel._last = "";
+panel.render();
+assert.match(panel.shadowRoot.innerHTML, /Registra rifornimento/);
+panel._activeTab = "maintenance";
+panel._last = "";
+panel.render();
+assert.match(panel.shadowRoot.innerHTML, /Manutenzione/);
+panel._activeTab = "settings";
+panel._last = "";
+panel.render();
+assert.match(panel.shadowRoot.innerHTML, /Pellet e prezzi/);
+panel.hass = { ...panel._hass, locale: { language: "sl" } };
+panel._last = "";
+panel.render();
+assert.match(panel.shadowRoot.innerHTML, /Pellet and prices/);
 console.log("WiNET panel render smoke tests passed");

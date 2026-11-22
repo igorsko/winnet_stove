@@ -57,6 +57,16 @@ When Home Assistant Recorder is enabled and the entities are not excluded, open 
 
 State mapping varies with firmware: active cycles currently include codes 2, 3, 4, 5, 8, 9, while 1, 6, 7 are treated as idle/off and 0 as unknown. Validate the physical mapping on your stove before relying on it for reports. These readings must not be used as safety interlocks.
 
+## Dashboard language and user experience
+
+The WiNET Stove dedicated panel supports **Italian and English**, automatically following
+the signed-in Home Assistant user's language preference. English is the default for
+other languages. The redesigned responsive panel groups information into **Control,
+Consumption, Refills, Maintenance and Settings**, prioritizes everyday controls,
+hides advanced diagnostics and per-power calibration in expandable sections,
+and explains unavailable estimates instead of displaying repeated unavailable values.
+Detailed refill records, automations, and the editable Lovelace dashboard are preserved.
+
 ## Automatic user interfaces
 
 After adding WiNET Stove, the integration provides a dedicated panel and an editable Lovelace dashboard (both enabled by default). They share **at most one sidebar entry**:
