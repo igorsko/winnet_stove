@@ -19,6 +19,7 @@ import logging
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN, STOVE_STATES
+from .controls import TARGET_VALUES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,11 +43,14 @@ class WinetStufaClimate(CoordinatorEntity, ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_supported_features = (
         ClimateEntityFeature.TURN_ON |
-        ClimateEntityFeature.TURN_OFF
+        ClimateEntityFeature.TURN_OFF |
+        ClimateEntityFeature.TARGET_TEMPERATURE
     )
     _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
-    _attr_min_temp = 5
-    _attr_max_temp = 40
+    # Deliberately limited to the two setpoints observed in the pilot capture.
+    _attr_min_temp = min(TARGET_VALUES)
+    _attr_max_temp = max(TARGET_VALUES)
+    _attr_target_temperature_step = 0.5
     
     def __init__(self, coordinator, api, entry):
         """Inizializza."""
@@ -70,6 +74,28 @@ class WinetStufaClimate(CoordinatorEntity, ClimateEntity):
             return temp
         return None
     
+    @property
+    def target_temperature(self):
+        """Read the actual setpoint from the local category-1 register 15."""
+        if self.coordinator.data and "registers" in self.coordinator.data:
+            return self._api.get_target_temperature(self.coordinator.data["registers"])
+        return None
+
+    async def async_set_temperature(self, **kwargs) -> None:
+        """Send only captured values; never guess unsupported setpoints."""
+        value = kwargs.get(ATTR_TEMPERATURE)
+        try:
+            # Validate before making a network call. API applies the same guard.
+            if value is None or float(value) not in TARGET_VALUES:
+                raise ValueError("Unsupported pilot target temperature")
+        except (ValueError, TypeError) as err:
+            raise HomeAssistantError(
+                "Pilot mode supports only 21.0 and 21.5 °C"
+            ) from err
+        if not await self._api.async_set_target_temperature(float(value)):
+            raise HomeAssistantError("WiNET stove rejected target temperature")
+        await self.coordinator.async_request_refresh()
+
     @property
     def hvac_mode(self):
         """Modalità HVAC corrente."""

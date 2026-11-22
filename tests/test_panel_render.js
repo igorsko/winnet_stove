@@ -41,6 +41,8 @@ panel.panel = {
         climate: "climate.test",
         state: "sensor.test_state",
         crono_switch: "switch.test_crono",
+        pilot_power: "select.pilot_power",
+        pilot_fan: "select.pilot_fan",
         pellet_refill_log: "sensor.test_refill_log",
         insights_today_cost: "sensor.today_cost",
       },
@@ -51,10 +53,12 @@ panel.hass = {
   states: {
     "climate.test": {
       state: "heat",
-      attributes: { current_temperature: 21 },
+      attributes: { current_temperature: 21, temperature: 21 },
     },
     "sensor.test_state": { state: "In Funzione", attributes: {} },
     "switch.test_crono": { state: "on", attributes: {} },
+    "select.pilot_power": { state: "1", attributes: {} },
+    "select.pilot_fan": { state: "2", attributes: {} },
     "sensor.today_cost": { state: "2.5", attributes: { unit_of_measurement: "€" } },
     "sensor.test_refill_log": {
       state: "1",
@@ -75,6 +79,9 @@ assert.match(panel.shadowRoot.innerHTML, /Lovelace dashboard/);
 assert.match(panel.shadowRoot.innerHTML, /class="power-action power-stop"/);
 assert.match(panel.shadowRoot.innerHTML, /class="control-summary"/);
 assert.match(panel.shadowRoot.innerHTML, /class="crono-control"/);
+assert.match(panel.shadowRoot.innerHTML, /class="pilot-panel"/);
+assert.match(panel.shadowRoot.innerHTML, /data-pilot-select="select.pilot_fan"/);
+assert.match(panel.shadowRoot.innerHTML, /data-pilot-temp="21.5"/);
 assert.match(panel.shadowRoot.innerHTML, /data-crono="switch.test_crono"/);
 assert.match(panel.shadowRoot.innerHTML, /data-crono-action="turn_off"/);
 assert.match(panel.shadowRoot.innerHTML, /Disable Crono/);

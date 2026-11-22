@@ -35,6 +35,12 @@ const WINET_LABELS = {
     "cronoConfirmOn": "Enable the stove’s saved weekly program?",
     "cronoConfirmOff": "Disable the stove’s weekly program?",
     "cronoError": "Could not change the Crono schedule",
+    "pilot": "Experimental local controls",
+    "pilotNote": "Only settings observed in the capture are enabled. Verify on the stove.",
+    "pilotTarget": "Target temperature",
+    "pilotPower": "Burner power",
+    "pilotFan": "Air fan",
+    "pilotError": "The stove did not accept the setting",
     "on": "Turn on stove",
     "offButton": "Turn off stove",
     "confirmOn": "Confirm starting the stove?",
@@ -160,6 +166,12 @@ const WINET_LABELS = {
     "cronoConfirmOn": "Attivare il programma settimanale già salvato sulla stufa?",
     "cronoConfirmOff": "Disattivare la programmazione oraria della stufa?",
     "cronoError": "Impossibile modificare la programmazione Crono",
+    "pilot": "Comandi locali sperimentali",
+    "pilotNote": "Sono abilitati solo i valori osservati nella cattura. Verifica sulla stufa.",
+    "pilotTarget": "Temperatura obiettivo",
+    "pilotPower": "Potenza della stufa",
+    "pilotFan": "Ventola aria",
+    "pilotError": "La stufa non ha accettato la regolazione",
     "on": "Accendi stufa",
     "offButton": "Spegni stufa",
     "confirmOn": "Confermi l'accensione della stufa?",
@@ -384,6 +396,32 @@ class WinetStovePanel extends HTMLElement {
       const cronoState = cronoId ? this._hass.states?.[cronoId]?.state : null;
       const cronoAvailable = cronoState === "on" || cronoState === "off";
       const cronoEnabled = cronoState === "on";
+      const pilotPowerId = m.pilot_power;
+      const pilotFanId = m.pilot_fan;
+      const targetValue = Number(current?.attributes?.temperature);
+      const pilotControls = [
+        [this.tr("pilotPower"), pilotPowerId],
+        [this.tr("pilotFan"), pilotFanId],
+      ].filter(([_,id]) => Boolean(id)).map(([label,id]) => {
+        const value = this._hass.states?.[id]?.state;
+        const valid = value === "1" || value === "2";
+        return `<div class="pilot-row"><label>${this.escape(label)}</label>
+          <select data-pilot-select="${this.escape(id)}" aria-label="${this.escape(label)}"
+            ${valid ? "" : "disabled"}>
+            <option value="" ${valid ? "" : "selected"} disabled>—</option>
+            <option value="1" ${value === "1" ? "selected" : ""}>1</option>
+            <option value="2" ${value === "2" ? "selected" : ""}>2</option>
+          </select></div>`;
+      }).join("");
+      const pilotTarget = climate && current && Number.isFinite(targetValue)
+        ? `<div class="pilot-row"><label>${this.tr("pilotTarget")}:
+            <strong>${this.escape(targetValue)} °C</strong></label>
+            <div class="pilot-buttons">${[21,21.5].map(value =>
+              `<button class="secondary" type="button" data-pilot-temp="${value}"
+                 data-pilot-climate="${this.escape(climate)}"
+                 ${targetValue === value || mode === "unavailable" || mode === "unknown" ? "disabled" : ""}>
+                 ${value} °C</button>`).join("")}</div></div>`
+        : "";
       const canCommand = Boolean(climate) && ["heat","off"].includes(mode);
       const buttons = climate ? `
         <button class="power-action ${isOn ? "power-stop" : "power-start"}"
@@ -543,6 +581,11 @@ class WinetStovePanel extends HTMLElement {
                 <div><strong>${todayRunning}</strong><span>${this.tr("todayHours")}</span></div>
               </div>
             </div>
+            ${pilotPowerId || pilotFanId || pilotTarget ? `<section class="pilot-panel">
+              <h3>${this.icon("sliders")}${this.tr("pilot")}</h3>
+              <p class="hint">${this.tr("pilotNote")}</p>
+              ${pilotTarget}${pilotControls}
+            </section>` : ""}
             ${cronoId ? `<div class="crono-control">
               <div class="crono-description">${this.icon("clock")}
                 <div><strong>${this.tr("cronoTitle")}</strong>
@@ -707,6 +750,21 @@ class WinetStovePanel extends HTMLElement {
         .support-reading div {min-width:0;display:flex;flex-direction:column;gap:3px;}
         .support-reading strong {font-size:23px;font-variant-numeric:tabular-nums;}
         .support-reading span:last-child {color:var(--secondary-text-color);font-size:13px;}
+        .pilot-panel {margin-top:16px;border:1px solid var(--divider-color);
+          border-radius:14px;padding:16px;}
+        .pilot-panel h3 {margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:8px;}
+        .pilot-panel .ico {color:var(--primary-color);}
+        .pilot-panel .hint {margin-bottom:9px;}
+        .pilot-row {display:flex;align-items:center;justify-content:space-between;gap:12px;
+          padding:10px 0;border-top:1px solid var(--divider-color);}
+        .pilot-row label {font-size:14px;}
+        .pilot-buttons {display:flex;gap:6px;}
+        .pilot-buttons button {padding:9px 12px;}
+        .pilot-row select {background:var(--secondary-background-color);
+          color:var(--primary-text-color);border:1px solid var(--divider-color);
+          border-radius:9px;font:inherit;min-width:76px;padding:8px;}
+        @media(max-width:480px){.pilot-row{flex-wrap:wrap;}
+          .pilot-buttons{width:100%;}.pilot-buttons button{flex:1;}}
         .crono-control {display:flex;align-items:center;justify-content:space-between;gap:16px;
           border:1px solid var(--divider-color);border-radius:14px;padding:14px 16px;margin-top:16px;}
         .crono-description {display:flex;align-items:center;gap:12px;}
@@ -1027,6 +1085,36 @@ class WinetStovePanel extends HTMLElement {
             this._hass?.showToast?.({ message: "Cannot log the pellet bag" });
           } finally {
             button.disabled = false;
+          }
+        });
+      });
+      this.shadowRoot.querySelectorAll("button[data-pilot-temp]").forEach(button => {
+        button.addEventListener("click", async () => {
+          if (button.disabled) return;
+          const value = Number(button.dataset.pilotTemp);
+          if (![21, 21.5].includes(value)) return;
+          button.disabled = true;
+          try {
+            await this._hass.callService("climate", "set_temperature", {
+              entity_id: button.dataset.pilotClimate, temperature: value,
+            });
+          } catch (_) {
+            this._hass?.showToast?.({message: this.tr("pilotError")});
+            button.disabled = false;
+          }
+        });
+      });
+      this.shadowRoot.querySelectorAll("select[data-pilot-select]").forEach(select => {
+        select.addEventListener("change", async () => {
+          if (select.disabled || !["1", "2"].includes(select.value)) return;
+          select.disabled = true;
+          try {
+            await this._hass.callService("select", "select_option", {
+              entity_id: select.dataset.pilotSelect, option: select.value,
+            });
+          } catch (_) {
+            this._hass?.showToast?.({message: this.tr("pilotError")});
+            select.disabled = false;
           }
         });
       });

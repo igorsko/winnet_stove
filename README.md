@@ -16,8 +16,9 @@ WiNET Stove is currently developed and tested **only with the Thermorossi Slimqu
 
 ## Features
 
-- Climate: stove on/off and measured temperature (target temperature adjustment is not implemented).
+- Climate: stove on/off, measured temperature, plus a **pilot-only** target temperature setting limited to the capture-verified 21.0 and 21.5 °C.
 - Sensors: stove state, power, fan speed, Wi-Fi RSSI, active alarm, numeric alarm code, timer (crono) state.
+- Experimental native `select` controls for burner power and room fan, **limited to captured levels 1 and 2**. These are distinct from the existing read-only sensors.
 - Switch: enable or disable the stove's built-in timer (crono).
 - Two native binary sensors: **Stove active** (operating cycle) and **Stove burning** (state `working`), providing on/off history through Home Assistant Recorder.
 - Usage sensors: **Current session duration**, **Last ignition** (observed transition), and persistent **Total combustion hours**.
@@ -56,6 +57,29 @@ When Home Assistant Recorder is enabled and the entities are not excluded, open 
 **Current session duration** reports observed time in the ongoing active operating cycle. **Last ignition** records the last transition observed from an idle/off state into an active cycle (an ignition already in progress when Home Assistant starts does not invent a timestamp). **Total combustion hours** counts consecutive samples confirmed to be in the `working` state, and stores the accumulated total across Home Assistant restarts. Unknown state values or missing connectivity do not count as running time.
 
 State mapping varies with firmware: active cycles currently include codes 2, 3, 4, 5, 8, 9, while 1, 6, 7 are treated as idle/off and 0 as unknown. Validate the physical mapping on your stove before relying on it for reports. These readings must not be used as safety interlocks.
+
+## Pilot: capture-derived local controls (not released to stable yet)
+
+This branch adds a hardware-test candidate based on a packet capture taken from the
+**Thermorossi Slimquadro 9 Evo on 22 November 2026**. The capture includes:
+
+| Function | Local register | Verified payload |
+| --- | --- | --- |
+| Target temperature | 15 | 156 = 21.0 °C; 158 = 21.5 °C |
+| Burner power | 12 | 1, 2 |
+| Room fan | 13 | 1, 2 |
+
+The local controller's HTTP category-1 register read includes the same register 15
+as the cloud traffic. The candidate reuses the already implemented
+`/ajax/set-register` transport and adds the corresponding `climate` setpoint
+and native `select` entities, plus controls in the dedicated panel.
+
+**Safety limitations:** Only values present in the supplied packet capture are
+writable. The capture proves the cloud-sent values but does **not** establish
+the full supported range, command acceptance over local HTTP, or behavior under
+all stove operating states. Do not extend the values without further evidence.
+Use this experimental branch only after checking the physical controls and
+with the stove attended. The previous read-only power/fan sensors remain.
 
 ## Crono scheduling control
 
