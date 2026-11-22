@@ -16,8 +16,9 @@ WiNET Stove is currently developed and tested **only with the Thermorossi Slimqu
 
 ## Features
 
-- Climate: stove on/off and measured temperature (target temperature adjustment is not implemented).
+- Climate: stove on/off, measured temperature and adjustable target temperature from 15–30 °C, in 0.5 °C increments.
 - Sensors: stove state, power, fan speed, Wi-Fi RSSI, active alarm, numeric alarm code, timer (crono) state.
+- Native `select` controls for burner power and room fan (levels 1–5), separate from the existing read-only sensors.
 - Switch: enable or disable the stove's built-in timer (crono).
 - Two native binary sensors: **Stove active** (operating cycle) and **Stove burning** (state `working`), providing on/off history through Home Assistant Recorder.
 - Usage sensors: **Current session duration**, **Last ignition** (observed transition), and persistent **Total combustion hours**.
@@ -57,6 +58,32 @@ When Home Assistant Recorder is enabled and the entities are not excluded, open 
 
 State mapping varies with firmware: active cycles currently include codes 2, 3, 4, 5, 8, 9, while 1, 6, 7 are treated as idle/off and 0 as unknown. Validate the physical mapping on your stove before relying on it for reports. These readings must not be used as safety interlocks.
 
+## Local heating controls (v1.3.4)
+
+WiNET Stove provides a Home Assistant `climate` entity with room temperature,
+heating on/off, and an adjustable target temperature **15–30 °C in 0.5 °C steps**.
+The target is read from local register 15 (category 1) and written over the local
+`POST /ajax/set-register` interface. It is calculated using
+`raw = (target °C + 18) * 4`. The observed cloud commands and local hardware
+tests support this linear encoding. **By user request, the same formula is
+assumed to hold across the configured range.** It is not independently
+confirmed below the observed setpoints.
+
+Separate native `select` entities set **power** and **air fan** to levels
+**1–5** using registers 12 and 13. The main panel exposes compact +/- controls.
+The existing read-only power and air fan sensors remain available.
+
+The captured traffic confirmed power and air fan levels 1–2 and setpoints
+21–30 °C. Additional values are extrapolated from the same user-facing
+register protocol; test them carefully on the physical stove. These controls
+do not adjust service/combustion calibration, smoke extractor motor settings,
+or other safety parameters.
+
+The Thermorossi Slimquadro 9 EVO manual separately discusses five combustion
+levels and six ventilation levels; we intentionally expose only five air fan
+levels in this integration. The manual's technical smoke extractor settings
+must not be confused with room fan control.
+
 ## Crono scheduling control
 
 The dedicated Control tab exposes an **Enable/Disable Crono** action whenever
@@ -66,7 +93,7 @@ confirmation, and is disabled when the switch state is unavailable. It toggles
 the stove's previously configured weekly schedule; this panel does not edit
 individual schedule times.
 
-**Temperature setpoint, burner power and room fan speed remain read-only**
+**Temperature setpoint, burner power and room fan speed are adjustable through the local controls**
 until register mapping, encoding and safe limits are verified on the tested
 Thermorossi Slimquadro 9 Evo. Cloud-app controls do not prove the equivalent
 local write register numbers. No speculative controller writes are included.
@@ -266,3 +293,5 @@ editable legacy Lovelace view, which is intentionally not overwritten.
 
 The manifest version and `manifest_version.py` version must be kept in sync
 when publishing future releases.
+
+

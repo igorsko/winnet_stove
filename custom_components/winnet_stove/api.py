@@ -7,6 +7,11 @@
 import aiohttp
 import logging
 
+from .controls import (
+    TARGET_REGISTER, POWER_REGISTER, FAN_REGISTER,
+    encode_target, encode_level, read_target,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 class WinetStufaAPI:
@@ -73,8 +78,7 @@ class WinetStufaAPI:
     
     def get_target_temperature(self, registers: dict) -> float:
         """Ottiene la temperatura target (registro 4 su cat 2)."""
-        # TODO: implementare lettura categoria 2
-        return None
+        return read_target(registers)
     
     def get_state(self, registers: dict) -> int:
         """Ottiene lo stato della stufa (registro 6)."""
@@ -181,6 +185,18 @@ class WinetStufaAPI:
         else:
             return await self.async_set_crono_on()
     
+    async def async_set_target_temperature(self, temperature: float) -> bool:
+        """Pilot setpoint: only values actually observed in the 2026-11-22 capture."""
+        return await self.async_set_register(TARGET_REGISTER, encode_target(temperature))
+
+    async def async_set_power_level(self, level: int) -> bool:
+        """Pilot: observed power levels 1 and 2 only."""
+        return await self.async_set_register(POWER_REGISTER, encode_level(level))
+
+    async def async_set_room_fan_level(self, level: int) -> bool:
+        """Pilot: observed air fan levels 1 and 2 only."""
+        return await self.async_set_register(FAN_REGISTER, encode_level(level))
+
     async def async_set_register(self, reg_id: int, value: int) -> bool:
         """Scrive un registro."""
         url = f"{self.base_url}/set-register"

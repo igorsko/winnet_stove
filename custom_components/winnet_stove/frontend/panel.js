@@ -35,6 +35,12 @@ const WINET_LABELS = {
     "cronoConfirmOn": "Enable the stove’s saved weekly program?",
     "cronoConfirmOff": "Disable the stove’s weekly program?",
     "cronoError": "Could not change the Crono schedule",
+    "pilot": "Experimental local controls",
+    "pilotNote": "Expanded pilot: levels 1–5, setpoint 15–30 °C. Verify new values on your stove.",
+    "pilotTarget": "Target temperature",
+    "pilotPower": "Burner power",
+    "pilotFan": "Air fan",
+    "pilotError": "The stove did not accept the setting",
     "on": "Turn on stove",
     "offButton": "Turn off stove",
     "confirmOn": "Confirm starting the stove?",
@@ -160,6 +166,12 @@ const WINET_LABELS = {
     "cronoConfirmOn": "Attivare il programma settimanale già salvato sulla stufa?",
     "cronoConfirmOff": "Disattivare la programmazione oraria della stufa?",
     "cronoError": "Impossibile modificare la programmazione Crono",
+    "pilot": "Comandi locali sperimentali",
+    "pilotNote": "Prova estesa: livelli 1–5 e temperatura 15–30 °C. Verifica i nuovi valori sulla stufa.",
+    "pilotTarget": "Temperatura obiettivo",
+    "pilotPower": "Potenza della stufa",
+    "pilotFan": "Ventola aria",
+    "pilotError": "La stufa non ha accettato la regolazione",
     "on": "Accendi stufa",
     "offButton": "Spegni stufa",
     "confirmOn": "Confermi l'accensione della stufa?",
@@ -384,6 +396,39 @@ class WinetStovePanel extends HTMLElement {
       const cronoState = cronoId ? this._hass.states?.[cronoId]?.state : null;
       const cronoAvailable = cronoState === "on" || cronoState === "off";
       const cronoEnabled = cronoState === "on";
+      const pilotPowerId = m.pilot_power;
+      const pilotFanId = m.pilot_fan;
+      const targetValue = Number(current?.attributes?.temperature);
+      const pilotControls = [
+        [this.tr("pilotPower"), pilotPowerId],
+        [this.tr("pilotFan"), pilotFanId],
+      ].filter(([_, id]) => Boolean(id)).map(([label, id]) => {
+        const value = Number(this._hass.states?.[id]?.state);
+        const valid = Number.isInteger(value) && value >= 1 && value <= 5 && this._hass.states?.[id]?.state !== "unavailable";
+        return `<div class="pilot-row"><label>${this.escape(label)}</label>
+          <div class="pilot-stepper">
+            <button type="button" class="secondary" data-pilot-step="${this.escape(id)}"
+              data-pilot-value="${value - 1}" aria-label="${this.escape(label)}: −"
+              ${!valid || value <= 1 ? "disabled" : ""}>−</button>
+            <output aria-live="polite">${valid ? value : "—"}</output>
+            <button type="button" class="secondary" data-pilot-step="${this.escape(id)}"
+              data-pilot-value="${value + 1}" aria-label="${this.escape(label)}: +"
+              ${!valid || value >= 5 ? "disabled" : ""}>+</button>
+          </div></div>`;
+      }).join("");
+      const validTarget = Number.isFinite(targetValue) && targetValue >= 15 && targetValue <= 30 && Number.isInteger(targetValue * 2);
+      const pilotTarget = climate && current && validTarget
+        ? `<div class="pilot-row"><label>${this.tr("pilotTarget")}</label>
+          <div class="pilot-stepper">
+            <button type="button" class="secondary" data-pilot-temp="${targetValue - 0.5}"
+              data-pilot-climate="${this.escape(climate)}" aria-label="${this.tr("pilotTarget")}: −"
+              ${targetValue <= 15 ? "disabled" : ""}>−</button>
+            <output aria-live="polite">${this.escape(targetValue)} °C</output>
+            <button type="button" class="secondary" data-pilot-temp="${targetValue + 0.5}"
+              data-pilot-climate="${this.escape(climate)}" aria-label="${this.tr("pilotTarget")}: +"
+              ${targetValue >= 30 ? "disabled" : ""}>+</button>
+          </div></div>`
+        : "";
       const canCommand = Boolean(climate) && ["heat","off"].includes(mode);
       const buttons = climate ? `
         <button class="power-action ${isOn ? "power-stop" : "power-start"}"
@@ -543,6 +588,11 @@ class WinetStovePanel extends HTMLElement {
                 <div><strong>${todayRunning}</strong><span>${this.tr("todayHours")}</span></div>
               </div>
             </div>
+            ${pilotPowerId || pilotFanId || pilotTarget ? `<section class="pilot-panel">
+              <h3>${this.icon("sliders")}${this.tr("pilot")}</h3>
+              <p class="hint">${this.tr("pilotNote")}</p>
+              ${pilotTarget}${pilotControls}
+            </section>` : ""}
             ${cronoId ? `<div class="crono-control">
               <div class="crono-description">${this.icon("clock")}
                 <div><strong>${this.tr("cronoTitle")}</strong>
@@ -707,6 +757,24 @@ class WinetStovePanel extends HTMLElement {
         .support-reading div {min-width:0;display:flex;flex-direction:column;gap:3px;}
         .support-reading strong {font-size:23px;font-variant-numeric:tabular-nums;}
         .support-reading span:last-child {color:var(--secondary-text-color);font-size:13px;}
+        .pilot-panel {margin-top:16px;border:1px solid var(--divider-color);
+          border-radius:14px;padding:16px;}
+        .pilot-panel h3 {margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:8px;}
+        .pilot-panel .ico {color:var(--primary-color);}
+        .pilot-panel .hint {margin-bottom:9px;}
+        .pilot-row {display:flex;align-items:center;justify-content:space-between;gap:12px;
+          padding:10px 0;border-top:1px solid var(--divider-color);}
+        .pilot-row label {font-size:14px;}
+        .pilot-buttons {display:flex;gap:6px;}
+        .pilot-buttons button {padding:9px 12px;}
+        .pilot-stepper {display:flex;align-items:center;gap:6px;}
+        .pilot-stepper output {min-width:64px;text-align:center;font-weight:650;font-variant-numeric:tabular-nums;}
+        .pilot-stepper button {min-width:40px;min-height:40px;padding:6px 10px;font-size:20px;line-height:1;}
+        .pilot-row select {background:var(--secondary-background-color);
+          color:var(--primary-text-color);border:1px solid var(--divider-color);
+          border-radius:9px;font:inherit;min-width:76px;padding:8px;}
+        @media(max-width:480px){.pilot-row{flex-wrap:wrap;}
+          .pilot-buttons{width:100%;}.pilot-buttons button{flex:1;}}
         .crono-control {display:flex;align-items:center;justify-content:space-between;gap:16px;
           border:1px solid var(--divider-color);border-radius:14px;padding:14px 16px;margin-top:16px;}
         .crono-description {display:flex;align-items:center;gap:12px;}
@@ -1027,6 +1095,40 @@ class WinetStovePanel extends HTMLElement {
             this._hass?.showToast?.({ message: "Cannot log the pellet bag" });
           } finally {
             button.disabled = false;
+          }
+        });
+      });
+      this.shadowRoot.querySelectorAll("button[data-pilot-temp]").forEach(button => {
+        button.addEventListener("click", async () => {
+          if (button.disabled) return;
+          const value = Number(button.dataset.pilotTemp);
+          if (!Number.isFinite(value) || value < 15 || value > 30 || !Number.isInteger(value * 2)) return;
+          button.disabled = true;
+          try {
+            await this._hass.callService("climate", "set_temperature", {
+              entity_id: button.dataset.pilotClimate, temperature: value,
+            });
+          } catch (_) {
+            this._hass?.showToast?.({message: this.tr("pilotError")});
+            button.disabled = false;
+          }
+        });
+      });
+      this.shadowRoot.querySelectorAll("button[data-pilot-step]").forEach(button => {
+        button.addEventListener("click", async () => {
+          if (button.disabled) return;
+          const level = Number(button.dataset.pilotValue);
+          if (!Number.isInteger(level) || level < 1 || level > 5) return;
+          const id = button.dataset.pilotStep;
+          const group = button.closest(".pilot-stepper");
+          group?.querySelectorAll("button").forEach(b => { b.disabled = true; });
+          try {
+            await this._hass.callService("select", "select_option", {
+              entity_id: id, option: String(level),
+            });
+          } catch (_) {
+            this._hass?.showToast?.({message: this.tr("pilotError")});
+            group?.querySelectorAll("button").forEach(b => { b.disabled = false; });
           }
         });
       });
