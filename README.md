@@ -58,24 +58,27 @@ When Home Assistant Recorder is enabled and the entities are not excluded, open 
 
 State mapping varies with firmware: active cycles currently include codes 2, 3, 4, 5, 8, 9, while 1, 6, 7 are treated as idle/off and 0 as unknown. Validate the physical mapping on your stove before relying on it for reports. These readings must not be used as safety interlocks.
 
-## Local heating controls (v1.3.4)
+## Local heating controls (v1.3.5)
 
 WiNET Stove provides a Home Assistant `climate` entity with room temperature,
 heating on/off, and an adjustable target temperature **15–30 °C in 0.5 °C steps**.
 The target is read from local register 15 (category 1) and written over the local
 `POST /ajax/set-register` interface. It is calculated using
-`raw = (target °C + 18) * 4`. The observed cloud commands and local hardware
-tests support this linear encoding. **By user request, the same formula is
-assumed to hold across the configured range.** It is not independently
-confirmed below the observed setpoints.
+`raw = (target °C + 18) * 4`. The observed cloud commands and subsequent user hardware tests confirm
+this encoding on the tested Slimquadro 9 Evo. Other models and firmware
+have not been validated.
 
 Separate native `select` entities set **power** and **air fan** to levels
-**1–5** using registers 12 and 13. The main panel exposes compact +/- controls.
+**1–5** using registers 12 and 13. The main Control panel places +/- buttons directly inside the existing
+room-temperature target, power and air-fan reading cards, with no separate
+experimental control section.
 The existing read-only power and air fan sensors remain available.
 
-The captured traffic confirmed power and air fan levels 1–2 and setpoints
-21–30 °C. Additional values are extrapolated from the same user-facing
-register protocol; test them carefully on the physical stove. These controls
+The integration has been successfully field-tested by the user on a
+Thermorossi Slimquadro 9 Evo with all three controls functioning:
+target temperature 15–30 °C (0.5 °C steps), power 1–5 and room fan 1–5.
+The initial packet capture confirmed the register mapping and the linear
+setpoint formula; support on other models and firmware remains unverified. These controls
 do not adjust service/combustion calibration, smoke extractor motor settings,
 or other safety parameters.
 
@@ -186,7 +189,7 @@ Home Assistant service actions `winnet_stove.record_refill`, `winnet_stove.edit_
 
 The **Consumption** tab tracks confirmed combustion hours by local calendar day and reports
 raw controller power values and time spent at each power. Raw register values are **not
-assumed to be manufacturer-calibrated power levels**. Nothing is written to the stove.
+assumed to be manufacturer-calibrated power levels**. These accounting settings do not write to the stove.
 
 The plugin supports these estimation paths:
 
