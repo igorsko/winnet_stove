@@ -82,7 +82,7 @@ assert.match(panel.shadowRoot.innerHTML, /15 kg/);
 
 // Home Assistant language must localize the same panel and retain English
 // as the fallback for other language codes.
-panel.hass = { ...panel.hass, locale: { language: "it" } };
+panel.hass = { ...panel._hass, locale: { language: "it" } };
 panel._activeTab = "control";
 panel._last = "";
 panel.render();
@@ -106,7 +106,7 @@ panel._activeTab = "settings";
 panel._last = "";
 panel.render();
 assert.match(panel.shadowRoot.innerHTML, /Pellet e prezzi/);
-panel.hass = { ...panel.hass, locale: { language: "sl" } };
+panel.hass = { ...panel._hass, locale: { language: "sl" } };
 panel._last = "";
 panel.render();
 assert.match(panel.shadowRoot.innerHTML, /Pellet and prices/);
