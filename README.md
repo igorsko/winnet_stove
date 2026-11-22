@@ -26,7 +26,7 @@ WiNET Stove is currently developed and tested **only with the Thermorossi Slimqu
 - Communication errors make Home Assistant entities unavailable instead of falsely reporting the stove as off.
 - Register diagnostics remain available separately from the normal climate entity attributes.
 
-**Not yet implemented:** maintenance reminders. Pellet bag stock, manual loading and consumption estimates are included; estimated consumption is **not measured by the stove**. Counting begins only after the integration is installed. Session and combustion time are conservative estimates based on confirmed samples; offline periods are not inferred. These are planned follow-up enhancements.
+**Consumption remains an estimate, never a direct pellet measurement.** Maintenance reminders, user-defined pellet prices, refill history and consumption calibration are included. Combustion time is based on confirmed samples; offline periods are not counted.
 
 ## Requirements
 
@@ -56,6 +56,21 @@ When Home Assistant Recorder is enabled and the entities are not excluded, open 
 **Current session duration** reports observed time in the ongoing active operating cycle. **Last ignition** records the last transition observed from an idle/off state into an active cycle (an ignition already in progress when Home Assistant starts does not invent a timestamp). **Total combustion hours** counts consecutive samples confirmed to be in the `working` state, and stores the accumulated total across Home Assistant restarts. Unknown state values or missing connectivity do not count as running time.
 
 State mapping varies with firmware: active cycles currently include codes 2, 3, 4, 5, 8, 9, while 1, 6, 7 are treated as idle/off and 0 as unknown. Validate the physical mapping on your stove before relying on it for reports. These readings must not be used as safety interlocks.
+
+## Responsive visual controls
+
+Since v1.3.0 the dedicated WiNET panel uses light, dependency-free inline vector icons.
+It inherits Home Assistant's theme tokens, so cards automatically follow light and dark
+mode. **Control** has one prominent, contextual power action at the top (turn on
+or turn off, with confirmation); the stove's state, room temperature, power, fan,
+combustion hours and current alarm are not duplicated in the visible view.
+Detailed status and scheduling remain accessible under **Technical details**.
+
+The other four views use the same iconography and spacing: consumption summaries
+show sources of estimates, refills keep their dated audit trail and correction
+actions, maintenance keeps its hour-based progress bars, and settings retain
+collapsed advanced calibration and diagnostics. No new controller register
+writes, dependencies, or non-measured sensor claims were added.
 
 ## Dashboard language and user experience
 

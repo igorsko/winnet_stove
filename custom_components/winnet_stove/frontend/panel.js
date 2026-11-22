@@ -240,6 +240,8 @@ const WINET_LABELS = {
   }
 };
 
+const WINET_ICONS = {"power":"<path d=\"M12 2v10M6.5 5.5a9 9 0 1 0 11 0\"/>","flame":"<path d=\"M12 22c5 0 8-3 8-7.5 0-3.4-2-6.4-5.3-9.5 0 3.1-1.2 4.7-2.6 5.5C12 6.8 10.7 3.8 8 2c.7 4-1.1 6.2-2.8 8.7C2.3 15.3 6 22 12 22Z\"/>","temperature":"<path d=\"M14 14.6V5a3 3 0 0 0-6 0v9.6a5 5 0 1 0 6 0ZM11 10v8\"/>","bars":"<rect x=\"3\" y=\"14\" width=\"4\" height=\"7\" rx=\"1\"/><rect x=\"10\" y=\"9\" width=\"4\" height=\"12\" rx=\"1\"/><rect x=\"17\" y=\"3\" width=\"4\" height=\"18\" rx=\"1\"/>","fan":"<circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"M12 10c-1.5-6-7-6-8-2-1 4 3 6 6 4M14 12c6-1 7 5 3 7-3 2-6-1-5-5M11 14c-4 4-9 2-8-2 1-4 5-5 7-2\"/>","clock":"<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/>","shield":"<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Zm-3-10 2 2 4-4\"/>","alert":"<path d=\"m12 3 10 18H2L12 3ZM12 9v4m0 4v.2\"/>","wifi":"<path d=\"M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0m-10.5 4a6 6 0 0 1 7 0M12 20h.01\"/>","package":"<path d=\"m12 2 9 5v10l-9 5-9-5V7l9-5Zm-9 5 9 5 9-5m-9 5v10\"/>","chart":"<path d=\"M3 3v18h18m-15-5 4-5 4 2 5-7\"/>","wrench":"<path d=\"M14 6a6 6 0 0 0-8 8L2 18l4 4 4-4a6 6 0 0 0 8-8l-4 4-4-4 4-4Z\"/>","settings":"<path d=\"M10 2h4l.7 2.3 2 1.2 2.3-.5 2 3.5-1.6 1.7v2.4l1.6 1.8-2 3.5-2.3-.5-2 1.2L14 21h-4l-.7-2.4-2-1.2-2.3.5-2-3.5 1.6-1.8v-2.4L3 8.5 5 5l2.3.5 2-1.2L10 2Z\"/><circle cx=\"12\" cy=\"11.5\" r=\"3\"/>","sliders":"<path d=\"M4 7h16M4 17h16\"/><circle cx=\"9\" cy=\"7\" r=\"2\" fill=\"none\"/><circle cx=\"16\" cy=\"17\" r=\"2\" fill=\"none\"/>","plus":"<path d=\"M12 5v14M5 12h14\"/>","check":"<path d=\"m5 12 4 4 10-10\"/>","pencil":"<path d=\"m3 17 11-11 4 4L7 21H3v-4ZM13 7l4 4\"/>","trash":"<path d=\"M4 7h16M10 4h4M6 7l1 14h10l1-14M10 11v6m4-6v6\"/>","info":"<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 10v7M12 7v.01\"/>"};
+
 class WinetStovePanel extends HTMLElement {
   constructor() {
     super();
@@ -268,6 +270,14 @@ class WinetStovePanel extends HTMLElement {
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
+  }
+
+  icon(name) {
+    const path = WINET_ICONS[name] || WINET_ICONS.info;
+    // Static allowlisted SVG geometry, never sourced from an HA entity.
+    return `<svg class="ico" aria-hidden="true" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+      stroke-linejoin="round">${path}</svg>`;
   }
 
   get locale() {
@@ -341,22 +351,26 @@ class WinetStovePanel extends HTMLElement {
       const rows = keys.filter(([_, id]) => id).map(([label, id]) =>
         `<div class="metric"><span>${this.escape(label)}</span><strong>${this.format(id)}</strong></div>`
       ).join("");
-      const primaryKeys = keys.filter(([label]) =>
-        [this.tr("state"), this.tr("power"), this.tr("fan"), this.tr("alarm"), this.tr("schedule")].includes(label)
-      );
-      const primaryRows = primaryKeys.filter(([_, id]) => id).map(([label,id]) =>
-        `<div class="metric"><span>${this.escape(label)}</span><strong>${this.format(id)}</strong></div>`
+      const powerValue = m.power ? this.format(m.power) : "—";
+      const powerLevel = Number(this._hass.states?.[m.power]?.state);
+      const powerBars = Array.from({length:5}, (_,n) =>
+        `<span class="${Number.isInteger(powerLevel) && powerLevel >= n + 1 ? "active" : ""}"></span>`
       ).join("");
+      const fanValue = m.fan ? this.format(m.fan) : "—";
+      const alarmRaw = this._hass.states?.[m.alarm]?.state?.toLowerCase() || "";
+      const alarmOk = ["nessun allarme","no alarms","none","0","ok"].includes(alarmRaw);
+      const alarmText = m.alarm ? this.format(m.alarm) : "—";
+      const rssiValue = m.rssi ? this.format(m.rssi) : "—";
       const todayRunning = m.insights_today_hours
         ? this.duration(this._hass.states?.[m.insights_today_hours]?.state)
         : "—";
-      const buttons = climate && mode !== "unavailable" && mode !== "unknown" ? `
-        <div class="controls main-action">
-          <button data-climate="${this.escape(climate)}" data-mode="${isOn ? "off" : "heat"}"
-            class="${isOn ? "secondary" : ""}">
-            ${isOn ? this.tr("offButton") : this.tr("on")}
-          </button>
-        </div>` : "";
+      const canCommand = Boolean(climate) && ["heat","off"].includes(mode);
+      const buttons = climate ? `
+        <button class="power-action ${isOn ? "power-stop" : "power-start"}"
+          data-climate="${this.escape(climate)}" data-mode="${isOn ? "off" : "heat"}"
+          ${canCommand ? "" : "disabled"}>
+          ${this.icon("power")}<span>${isOn ? this.tr("offButton") : this.tr("on")}</span>
+        </button>` : "";
       const pelletMetrics = [
         [this.tr("allHours"), m.pellet_total_hours],
         [this.tr("bagsLoaded"), m.pellet_bags_loaded],
@@ -414,17 +428,17 @@ class WinetStovePanel extends HTMLElement {
             <button class="secondary mini" data-refill-edit="${this.escape(event.id)}"
               data-entry="${this.escape(stove.entry_id)}"
               data-kg="${this.escape(event.kg)}"
-            data-full="${event.full_hopper ? "true" : "false"}">${this.tr("edit")}</button>
+            data-full="${event.full_hopper ? "true" : "false"}">${this.icon("pencil")}${this.tr("edit")}</button>
             <button class="secondary mini" data-refill-delete="${this.escape(event.id)}"
-              data-entry="${this.escape(stove.entry_id)}">${this.tr("delete")}</button>
+              data-entry="${this.escape(stove.entry_id)}">${this.icon("trash")}${this.tr("delete")}</button>
           </div>
         </div>`;
       }).join("");
       const refillCard = stove.entry_id ? `
         <div class="refill-manager">
-          <div class="refill-head"><div><h4>${this.tr("refillTitle")}</h4>
+          <div class="refill-head"><div><h4 class="section-title">${this.icon("package")}${this.tr("refillTitle")}</h4>
           <p class="hint">${this.tr("refillHelp")}</p></div>
-          <button data-refill-new="${this.escape(stove.entry_id)}">${this.tr("recordRefill")}</button></div>
+          <button data-refill-new="${this.escape(stove.entry_id)}">${this.icon("plus")}${this.tr("recordRefill")}</button></div>
           <p class="refill-error" role="alert">${this.escape(this._refillDraft ? "" : this._uiMessage)}</p>
           <div class="refill-summary">
             ${this.tr("recorded")}: <strong>${this.escape(ledger.total_kg ?? "0")} kg</strong>
@@ -448,12 +462,12 @@ class WinetStovePanel extends HTMLElement {
           : this.tr("dueIn") + " " + this.duration(remaining);
         return `<div class="maintenance-item">
           <div class="maintenance-main">
-            <strong>${this.escape(title)}</strong>
+            <strong class="maintenance-label">${this.icon(key === "burner" ? "flame" : "wrench")}${this.escape(title)}</strong>
             <small>${this.escape(label)}</small>
             ${valid ? `<div class="progress"><div style="width:${percent.toFixed(2)}%"></div></div>` : ""}
           </div>
           <button class="secondary" data-maint-kind="${this.escape(key)}"
-            data-entry="${this.escape(stove.entry_id)}">${this.tr("completed")}</button>
+            data-entry="${this.escape(stove.entry_id)}">${this.icon("check")}${this.tr("completed")}</button>
         </div>`;
       }).join("");
       const fullRateId = m.insights_effective_rate;
@@ -479,26 +493,53 @@ class WinetStovePanel extends HTMLElement {
       return `
         <section class="stove">
           <div class="top">
-            <div><h2>${this.escape(this.displayName(stove.title, index))}</h2></div>
-            <span class="status ${isOn ? "on" : ""}">${this.escape(this.stateLabel(mode))}</span>
+            <div class="device-heading">
+              <span class="device-mark">${this.icon("flame")}</span>
+              <div><h2>${this.escape(this.displayName(stove.title, index))}</h2>
+                <span class="status ${isOn ? "on" : ""}">
+                  ${this.icon(isOn ? "flame" : "info")}${this.escape(this.stateLabel(mode))}
+                </span>
+              </div>
+            </div>
+            ${this._activeTab === "control" ? `<div class="top-actions">${buttons}</div>` : ""}
           </div>
           <section class="tab-content" ${this._activeTab !== "control" ? "hidden" : ""}>
-            <div class="control-hero">
-              <div class="temperature">
-                <span>${this.tr("roomTemp")}</span>
-                <strong>${temp == null ? "—" : this.escape(temp) + " °C"}</strong>
-                <small>${this.tr("todayHours")}: ${todayRunning}</small>
+            <div class="control-summary">
+              <div class="hero-reading"><span class="hero-symbol">${this.icon("temperature")}</span>
+                <div><span class="subtle">${this.tr("roomTemp")}</span>
+                <strong>${temp == null ? "—" : this.escape(temp) + " °C"}</strong></div>
               </div>
-              <div class="primary-control">${buttons}</div>
+              <div class="hero-reading"><span class="hero-symbol blue">${this.icon("bars")}</span>
+                <div><span class="subtle">${this.tr("power")}</span>
+                <strong>${powerValue}</strong>
+                <div class="power-bars" aria-hidden="true">${powerBars}</div></div>
+              </div>
             </div>
-            <div class="metrics key-metrics">${primaryRows}</div>
-            <details class="more-info"><summary>${this.tr("technical")}</summary>
-              <div class="metrics">${rows}</div>
+            <div class="support-grid">
+              <div class="support-reading"><span class="support-symbol blue">${this.icon("fan")}</span>
+                <div><strong>${fanValue}</strong><span>${this.tr("fan")}</span></div>
+              </div>
+              <div class="support-reading"><span class="support-symbol">${this.icon("clock")}</span>
+                <div><strong>${todayRunning}</strong><span>${this.tr("todayHours")}</span></div>
+              </div>
+            </div>
+            <div class="health-strip">
+              <div class="${alarmOk ? "ok" : "attention"}">
+                ${this.icon(alarmOk ? "shield" : "alert")}<span>${alarmText}</span>
+              </div>
+              <div>${this.icon("wifi")}${rssiValue}</div>
+            </div>
+            <details class="more-info"><summary>${this.icon("sliders")}${this.tr("technical")}</summary>
+              <div class="technical-rows">
+                ${m.state ? `<div><span>${this.tr("state")}</span><strong>${this.format(m.state)}</strong></div>` : ""}
+                ${m.crono ? `<div><span>${this.tr("schedule")}</span><strong>${this.format(m.crono)}</strong></div>` : ""}
+                ${m.rssi ? `<div><span>${this.tr("wifi")}</span><strong>${rssiValue}</strong></div>` : ""}
+              </div>
             </details>
           </section>
           <section class="tab-content" ${this._activeTab !== "consumption" ? "hidden" : ""}>
             <div class="section-intro">
-              <h3>${this.tr("costsTitle")}</h3>
+              <h3 class="section-title">${this.icon("chart")}${this.tr("costsTitle")}</h3>
               <p class="hint">${this.tr("dataNote")}</p>
             </div>
             <div class="metrics overview">
@@ -523,7 +564,7 @@ class WinetStovePanel extends HTMLElement {
                 · ${this.sourceLabel(rateSource)}</p>`}
             <h4>${this.tr("lastDays")}</h4>
             ${dailyRows || `<p class="hint">${this.tr("noDaily")}</p>`}
-            <details class="more-info"><summary>${this.tr("technical")}</summary>
+            <details class="more-info"><summary>${this.icon("sliders")}${this.tr("technical")}</summary>
               <div class="metrics">${pelletReadings}</div>
               <h4>${this.tr("powerHours")}</h4>
               <div class="metrics">${powerRows || `<p class="hint">${this.tr("noPower")}</p>`}</div>
@@ -533,24 +574,24 @@ class WinetStovePanel extends HTMLElement {
             ${refillCard}
           </section>
           <section class="tab-content" ${this._activeTab !== "maintenance" ? "hidden" : ""}>
-            <h3>${this.tr("maintTitle")}</h3>
+            <h3 class="section-title">${this.icon("wrench")}${this.tr("maintTitle")}</h3>
             <p class="hint">${this.tr("maintHelp")}</p>
             ${maintenance}
           </section>
           <section class="tab-content" ${this._activeTab !== "settings" ? "hidden" : ""}>
-            <h3>${this.tr("settingsTitle")}</h3>
+            <h3 class="section-title">${this.icon("settings")}${this.tr("settingsTitle")}</h3>
             <p class="hint">${this.tr("settingsHelp")}</p>
-            <div class="setting-section"><h4>${this.tr("pelletGroup")}</h4>
+            <div class="setting-section"><h4 class="section-title">${this.icon("package")}${this.tr("pelletGroup")}</h4>
               <div class="settings">${makeSettings(pelletNumbers.slice(0,5))}</div>
             </div>
-            <details class="more-info"><summary>${this.tr("calibrationGroup")}</summary>
+            <details class="more-info"><summary>${this.icon("bars")}${this.tr("calibrationGroup")}</summary>
               <p class="hint">${this.tr("fullHelp")}</p>
               <div class="settings">${makeSettings(pelletNumbers.slice(8))}</div>
             </details>
-            <details class="more-info"><summary>${this.tr("maintGroup")}</summary>
+            <details class="more-info"><summary>${this.icon("wrench")}${this.tr("maintGroup")}</summary>
               <div class="settings">${makeSettings(pelletNumbers.slice(5,8))}</div>
             </details>
-            <details class="more-info"><summary>${this.tr("diagnosticsGroup")}</summary>
+            <details class="more-info"><summary>${this.icon("settings")}${this.tr("diagnosticsGroup")}</summary>
               <div class="controls">
                 <button class="secondary" data-info="${this.escape(m.diagnostics_connection || "")}">
                   ${this.tr("connectionDetails")}: ${m.diagnostics_connection ? this.format(m.diagnostics_connection) : "—"}
@@ -592,6 +633,88 @@ class WinetStovePanel extends HTMLElement {
         * { box-sizing: border-box; }
         .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 20px 64px; font-family: var(--paper-font-body1_-_font-family, sans-serif); }
         .tab-content[hidden] { display:none !important; }
+
+        /* One design system for light and dark Home Assistant themes. */
+        .ico { width:20px;height:20px;display:inline-block;flex-shrink:0;vertical-align:middle; }
+        .device-heading {display:flex;align-items:center;gap:14px;min-width:0;}
+        .device-mark {display:grid;place-items:center;color:var(--warning-color,#f47b20);}
+        .device-mark .ico {width:38px;height:38px;}
+        .device-heading h2 {font-size:clamp(19px,2.4vw,24px);margin:0 0 7px;}
+        .device-heading .status {display:inline-flex;align-items:center;gap:6px;padding:5px 10px;}
+        .status .ico {width:14px;height:14px;}
+        .top-actions {flex-shrink:0;}
+        .power-action {min-height:76px;min-width:145px;display:flex;align-items:center;
+          justify-content:center;gap:10px;border:1px solid transparent;padding:13px 18px;
+          font-size:16px;box-shadow:0 2px 7px #0001;}
+        .power-action .ico {width:30px;height:30px;}
+        .power-action.power-stop {background:var(--error-color,#c34c3f);color:white;}
+        .power-action.power-start {background:var(--primary-color,#159bca);color:var(--text-primary-color,white);}
+        .power-action:disabled {opacity:.5;}
+        .control-summary {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+          gap:12px;margin:20px 0 12px;}
+        .hero-reading {min-height:154px;padding:24px 22px;border-radius:18px;
+          background:var(--secondary-background-color);display:flex;align-items:center;gap:18px;}
+        .hero-reading > div {min-width:0;}
+        .hero-reading .subtle {color:var(--secondary-text-color);font-size:13px;display:block;}
+        .hero-reading strong {display:block;font-size:clamp(31px,4.5vw,46px);font-weight:700;
+          line-height:1.15;margin-top:8px;font-variant-numeric:tabular-nums;}
+        .hero-symbol {color:var(--warning-color,#f47b20);}
+        .hero-symbol .ico {width:37px;height:37px;}
+        .blue {color:var(--primary-color,#159bca);}
+        .power-bars {display:flex;align-items:end;gap:5px;height:19px;margin-top:9px;}
+        .power-bars span {height:28%;width:12px;background:var(--divider-color);border-radius:2px;}
+        .power-bars span:nth-child(2){height:43%;}
+        .power-bars span:nth-child(3){height:58%;}
+        .power-bars span:nth-child(4){height:78%;}
+        .power-bars span:nth-child(5){height:100%;}
+        .power-bars span.active {background:var(--primary-color,#159bca);}
+        .support-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+        .support-reading {background:var(--secondary-background-color);border-radius:16px;
+          padding:18px 20px;display:flex;align-items:center;gap:16px;}
+        .support-symbol .ico {width:29px;height:29px;}
+        .support-reading div {min-width:0;display:flex;flex-direction:column;gap:3px;}
+        .support-reading strong {font-size:23px;font-variant-numeric:tabular-nums;}
+        .support-reading span:last-child {color:var(--secondary-text-color);font-size:13px;}
+        .health-strip {display:flex;align-items:center;justify-content:space-between;
+          gap:15px;flex-wrap:wrap;padding:18px 4px 0;color:var(--secondary-text-color);}
+        .health-strip>div {display:flex;align-items:center;gap:8px;font-size:13px;}
+        .health-strip .ok {color:var(--success-color,#279452);}
+        .health-strip .attention {color:var(--error-color,#c34c3f);}
+        .section-title {display:flex;align-items:center;gap:10px;}
+        .section-title .ico {color:var(--primary-color);width:24px;height:24px;}
+        .more-info summary {display:flex;align-items:center;gap:10px;}
+        .more-info summary .ico {color:var(--primary-color);width:18px;height:18px;}
+        .technical-rows {display:grid;gap:12px;padding:2px 0 4px;}
+        .technical-rows>div {display:flex;justify-content:space-between;gap:12px;
+          align-items:center;border-bottom:1px solid var(--divider-color);padding:6px 0;}
+        .technical-rows span {color:var(--secondary-text-color);}
+        .maintenance-label {display:inline-flex;align-items:center;gap:10px;}
+        .maintenance-label .ico {color:var(--primary-color);}
+        button .ico {width:18px;height:18px;margin-right:7px;}
+        button.power-action .ico {margin-right:0;}
+        .tabs button {display:inline-flex;align-items:center;gap:7px;}
+        .tabs button .ico {width:17px;height:17px;margin:0;}
+        .refill-head button {display:inline-flex;align-items:center;justify-content:center;}
+        .refill-manager .row-actions button {display:inline-flex;align-items:center;}
+        @media(max-width:680px) {
+          .stove .top {align-items:flex-start;flex-wrap:wrap;}
+          .top-actions {width:100%;}
+          .power-action {min-height:59px;width:100%;}
+          .control-summary {grid-template-columns:1fr 1fr;}
+          .hero-reading {padding:15px;min-height:126px;gap:8px;flex-direction:column;align-items:flex-start;}
+          .hero-symbol .ico {width:27px;height:27px;}
+          .hero-reading strong {font-size:clamp(27px,6.4vw,38px);}
+          .support-reading {padding:12px;gap:10px;}
+          .support-reading strong {font-size:18px;}
+          .support-symbol .ico {width:22px;height:22px;}
+          .tabs button {padding:9px 12px;}
+        }
+        @media(max-width:380px) {
+          .support-grid {grid-template-columns:1fr;}
+          .hero-reading strong {font-size:27px;}
+          .device-mark .ico {width:30px;height:30px;}
+        }
+
         .control-hero {display:flex;align-items:center;justify-content:space-between;gap:20px;
           padding:18px 0 24px;flex-wrap:wrap;}
         .control-hero .temperature {padding:0;}
@@ -701,11 +824,11 @@ class WinetStovePanel extends HTMLElement {
         </div>
         <nav class="tabs" aria-label="WiNET Stove">
           ${[
-            ["control", this.tr("control")], ["consumption", this.tr("consumption")],
-            ["refills", this.tr("refills")], ["maintenance", this.tr("maintenance")],
-            ["settings", this.tr("settings")],
-          ].map(([id,label]) => `<button data-tab="${id}" class="${this._activeTab===id ? "selected" : ""}"
-             aria-current="${this._activeTab===id ? "page" : "false"}">${label}</button>`).join("")}
+            ["control", this.tr("control"), "temperature"], ["consumption", this.tr("consumption"), "chart"],
+            ["refills", this.tr("refills"), "package"], ["maintenance", this.tr("maintenance"), "wrench"],
+            ["settings", this.tr("settings"), "settings"],
+          ].map(([id,label,ico]) => `<button data-tab="${id}" class="${this._activeTab===id ? "selected" : ""}"
+             aria-current="${this._activeTab===id ? "page" : "false"}">${this.icon(ico)}${label}</button>`).join("")}
         </nav>
         ${blocks || `<p class="empty">${this.tr("noDevice")}</p>`}
       </main>`;
