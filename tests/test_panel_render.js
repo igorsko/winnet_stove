@@ -82,8 +82,10 @@ assert.match(panel.shadowRoot.innerHTML, /class="crono-control"/);
 assert.doesNotMatch(panel.shadowRoot.innerHTML, /class="pilot-panel"/);
 assert.match(panel.shadowRoot.innerHTML, /class="target-control"/);
 assert.match(panel.shadowRoot.innerHTML, /class="inline-stepper"/);
-assert.doesNotMatch(panel.shadowRoot.innerHTML, /<details class="more-info">/);
-assert.doesNotMatch(panel.shadowRoot.innerHTML, /Technical details/);
+// Other tabs intentionally retain expandable technical settings and diagnostics.
+const controlHtml = panel.shadowRoot.innerHTML.split('<section class="tab-content"')[1]?.split('</section>')[0] || "";
+assert.doesNotMatch(controlHtml, /<details class="more-info">/);
+assert.doesNotMatch(controlHtml, /Technical details/);
 assert.match(panel.shadowRoot.innerHTML, /data-pilot-step="select.pilot_fan"/);
 assert.match(panel.shadowRoot.innerHTML, /data-pilot-step="select.pilot_power"/);
 assert.doesNotMatch(panel.shadowRoot.innerHTML, /Experimental local controls/);
