@@ -35,8 +35,6 @@ const WINET_LABELS = {
     "cronoConfirmOn": "Enable the stove’s saved weekly program?",
     "cronoConfirmOff": "Disable the stove’s weekly program?",
     "cronoError": "Could not change the Crono schedule",
-    "pilot": "Experimental local controls",
-    "pilotNote": "Expanded pilot: levels 1–5, setpoint 15–30 °C. Verify new values on your stove.",
     "pilotTarget": "Target temperature",
     "pilotPower": "Burner power",
     "pilotFan": "Air fan",
@@ -166,8 +164,6 @@ const WINET_LABELS = {
     "cronoConfirmOn": "Attivare il programma settimanale già salvato sulla stufa?",
     "cronoConfirmOff": "Disattivare la programmazione oraria della stufa?",
     "cronoError": "Impossibile modificare la programmazione Crono",
-    "pilot": "Comandi locali sperimentali",
-    "pilotNote": "Prova estesa: livelli 1–5 e temperatura 15–30 °C. Verifica i nuovi valori sulla stufa.",
     "pilotTarget": "Temperatura obiettivo",
     "pilotPower": "Potenza della stufa",
     "pilotFan": "Ventola aria",
@@ -396,30 +392,33 @@ class WinetStovePanel extends HTMLElement {
       const cronoState = cronoId ? this._hass.states?.[cronoId]?.state : null;
       const cronoAvailable = cronoState === "on" || cronoState === "off";
       const cronoEnabled = cronoState === "on";
-      const pilotPowerId = m.pilot_power;
-      const pilotFanId = m.pilot_fan;
+      // Prefer dedicated writable entities while displaying actual sensor values.
+      const powerControlId = m.pilot_power;
+      const fanControlId = m.pilot_fan;
       const targetValue = Number(current?.attributes?.temperature);
-      const pilotControls = [
-        [this.tr("pilotPower"), pilotPowerId],
-        [this.tr("pilotFan"), pilotFanId],
-      ].filter(([_, id]) => Boolean(id)).map(([label, id]) => {
-        const value = Number(this._hass.states?.[id]?.state);
-        const valid = Number.isInteger(value) && value >= 1 && value <= 5 && this._hass.states?.[id]?.state !== "unavailable";
-        return `<div class="pilot-row"><label>${this.escape(label)}</label>
-          <div class="pilot-stepper">
-            <button type="button" class="secondary" data-pilot-step="${this.escape(id)}"
-              data-pilot-value="${value - 1}" aria-label="${this.escape(label)}: −"
-              ${!valid || value <= 1 ? "disabled" : ""}>−</button>
-            <output aria-live="polite">${valid ? value : "—"}</output>
-            <button type="button" class="secondary" data-pilot-step="${this.escape(id)}"
-              data-pilot-value="${value + 1}" aria-label="${this.escape(label)}: +"
-              ${!valid || value >= 5 ? "disabled" : ""}>+</button>
-          </div></div>`;
-      }).join("");
-      const validTarget = Number.isFinite(targetValue) && targetValue >= 15 && targetValue <= 30 && Number.isInteger(targetValue * 2);
-      const pilotTarget = climate && current && validTarget
-        ? `<div class="pilot-row"><label>${this.tr("pilotTarget")}</label>
-          <div class="pilot-stepper">
+      const controlStepper = (entityId, label, reading, min, max) => {
+        const state = entityId ? this._hass.states?.[entityId]?.state : null;
+        const value = Number(state);
+        const ready = state != null && !["unknown", "unavailable"].includes(state)
+          && Number.isInteger(value) && value >= min && value <= max;
+        if (!entityId || !ready) return `<strong>${this.escape(reading)}</strong>`;
+        return `<div class="inline-stepper" role="group" aria-label="${this.escape(label)}">
+          <button type="button" class="secondary" data-pilot-step="${this.escape(entityId)}"
+            data-pilot-value="${value - 1}" aria-label="${this.escape(label)}: −"
+            ${value <= min ? "disabled" : ""}>−</button>
+          <output aria-live="polite">${value}</output>
+          <button type="button" class="secondary" data-pilot-step="${this.escape(entityId)}"
+            data-pilot-value="${value + 1}" aria-label="${this.escape(label)}: +"
+            ${value >= max ? "disabled" : ""}>+</button>
+        </div>`;
+      };
+      const powerControl = controlStepper(powerControlId, this.tr("power"), powerValue, 1, 5);
+      const fanControl = controlStepper(fanControlId, this.tr("fan"), fanValue, 1, 5);
+      const targetValid = climate && current && Number.isFinite(targetValue)
+        && targetValue >= 15 && targetValue <= 30 && Number.isInteger(targetValue * 2);
+      const targetControl = targetValid
+        ? `<div class="target-control"><span class="subtle">${this.tr("pilotTarget")}</span>
+          <div class="inline-stepper" role="group" aria-label="${this.tr("pilotTarget")}">
             <button type="button" class="secondary" data-pilot-temp="${targetValue - 0.5}"
               data-pilot-climate="${this.escape(climate)}" aria-label="${this.tr("pilotTarget")}: −"
               ${targetValue <= 15 ? "disabled" : ""}>−</button>
@@ -572,27 +571,23 @@ class WinetStovePanel extends HTMLElement {
             <div class="control-summary">
               <div class="hero-reading"><span class="hero-symbol">${this.icon("temperature")}</span>
                 <div><span class="subtle">${this.tr("roomTemp")}</span>
-                <strong>${temp == null ? "—" : this.escape(temp) + " °C"}</strong></div>
+                <strong>${temp == null ? "—" : this.escape(temp) + " °C"}</strong>
+                ${targetControl}</div>
               </div>
               <div class="hero-reading"><span class="hero-symbol blue">${this.icon("bars")}</span>
                 <div><span class="subtle">${this.tr("power")}</span>
-                <strong>${powerValue}</strong>
+                ${powerControl}
                 <div class="power-bars" aria-hidden="true">${powerBars}</div></div>
               </div>
             </div>
             <div class="support-grid">
               <div class="support-reading"><span class="support-symbol blue">${this.icon("fan")}</span>
-                <div><strong>${fanValue}</strong><span>${this.tr("fan")}</span></div>
+                <div><span>${this.tr("fan")}</span>${fanControl}</div>
               </div>
               <div class="support-reading"><span class="support-symbol">${this.icon("clock")}</span>
                 <div><strong>${todayRunning}</strong><span>${this.tr("todayHours")}</span></div>
               </div>
             </div>
-            ${pilotPowerId || pilotFanId || pilotTarget ? `<section class="pilot-panel">
-              <h3>${this.icon("sliders")}${this.tr("pilot")}</h3>
-              <p class="hint">${this.tr("pilotNote")}</p>
-              ${pilotTarget}${pilotControls}
-            </section>` : ""}
             ${cronoId ? `<div class="crono-control">
               <div class="crono-description">${this.icon("clock")}
                 <div><strong>${this.tr("cronoTitle")}</strong>
@@ -757,24 +752,29 @@ class WinetStovePanel extends HTMLElement {
         .support-reading div {min-width:0;display:flex;flex-direction:column;gap:3px;}
         .support-reading strong {font-size:23px;font-variant-numeric:tabular-nums;}
         .support-reading span:last-child {color:var(--secondary-text-color);font-size:13px;}
-        .pilot-panel {margin-top:16px;border:1px solid var(--divider-color);
-          border-radius:14px;padding:16px;}
-        .pilot-panel h3 {margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:8px;}
-        .pilot-panel .ico {color:var(--primary-color);}
-        .pilot-panel .hint {margin-bottom:9px;}
-        .pilot-row {display:flex;align-items:center;justify-content:space-between;gap:12px;
-          padding:10px 0;border-top:1px solid var(--divider-color);}
-        .pilot-row label {font-size:14px;}
-        .pilot-buttons {display:flex;gap:6px;}
-        .pilot-buttons button {padding:9px 12px;}
-        .pilot-stepper {display:flex;align-items:center;gap:6px;}
-        .pilot-stepper output {min-width:64px;text-align:center;font-weight:650;font-variant-numeric:tabular-nums;}
-        .pilot-stepper button {min-width:40px;min-height:40px;padding:6px 10px;font-size:20px;line-height:1;}
-        .pilot-row select {background:var(--secondary-background-color);
-          color:var(--primary-text-color);border:1px solid var(--divider-color);
-          border-radius:9px;font:inherit;min-width:76px;padding:8px;}
-        @media(max-width:480px){.pilot-row{flex-wrap:wrap;}
-          .pilot-buttons{width:100%;}.pilot-buttons button{flex:1;}}
+        .hero-reading {align-items:flex-start;}
+        .hero-reading > div {flex:1;min-width:0;}
+        .target-control {display:flex;flex-direction:column;align-items:flex-start;gap:7px;
+          padding-top:12px;margin-top:12px;border-top:1px solid var(--divider-color);}
+        .inline-stepper {display:flex;flex-direction:row;align-items:center;gap:7px;
+          min-width:0;max-width:100%;}
+        .inline-stepper output {display:inline-block;min-width:52px;text-align:center;
+          font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;
+          color:var(--primary-text-color);white-space:nowrap;}
+        .target-control .inline-stepper output {min-width:80px;}
+        .inline-stepper button {flex:0 0 auto;min-width:39px;min-height:39px;
+          border-radius:10px;padding:6px 9px;font-size:21px;line-height:1;}
+        .support-reading .inline-stepper {flex-direction:row;gap:6px;}
+        .support-reading .inline-stepper output {font-size:21px;min-width:30px;}
+        .support-reading .inline-stepper button {min-width:34px;min-height:36px;}
+        @media(max-width:680px) {
+          .hero-reading {padding:18px 14px;gap:9px;flex-wrap:wrap;}
+          .hero-reading .hero-symbol .ico {width:28px;height:28px;}
+          .support-reading {flex-wrap:wrap;gap:9px;}
+          .inline-stepper {gap:4px;}
+          .inline-stepper button {min-width:36px;min-height:36px;padding:6px;}
+          .target-control .inline-stepper output {min-width:69px;font-size:17px;}
+        }
         .crono-control {display:flex;align-items:center;justify-content:space-between;gap:16px;
           border:1px solid var(--divider-color);border-radius:14px;padding:14px 16px;margin-top:16px;}
         .crono-description {display:flex;align-items:center;gap:12px;}
