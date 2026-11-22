@@ -58,7 +58,7 @@ When Home Assistant Recorder is enabled and the entities are not excluded, open 
 
 State mapping varies with firmware: active cycles currently include codes 2, 3, 4, 5, 8, 9, while 1, 6, 7 are treated as idle/off and 0 as unknown. Validate the physical mapping on your stove before relying on it for reports. These readings must not be used as safety interlocks.
 
-## Local heating controls (v1.3.5)
+## Local heating controls (v1.3.6)
 
 WiNET Stove provides a Home Assistant `climate` entity with room temperature,
 heating on/off, and an adjustable target temperature **15–30 °C in 0.5 °C steps**.
@@ -71,7 +71,8 @@ have not been validated.
 Separate native `select` entities set **power** and **air fan** to levels
 **1–5** using registers 12 and 13. The main Control panel places +/- buttons directly inside the existing
 room-temperature target, power and air-fan reading cards, with no separate
-experimental control section.
+experimental control section. Since v1.3.6, these buttons have clear borders,
+visible keyboard focus and 42 × 42 px click targets.
 The existing read-only power and air fan sensors remain available.
 
 The integration has been successfully field-tested by the user on a
@@ -108,7 +109,7 @@ It inherits Home Assistant's theme tokens, so cards automatically follow light a
 mode. **Control** has one prominent, contextual power action at the top (turn on
 or turn off, with confirmation); the stove's state, room temperature, power, fan,
 combustion hours and current alarm are not duplicated in the visible view.
-Detailed status and scheduling remain accessible under **Technical details**.
+The Control tab displays the stove state, active alarms and Wi-Fi strength directly, plus Crono scheduling. Its redundant **Technical details** accordion was removed in v1.3.6; detailed consumption data and advanced configuration remain accessible in their respective tabs.
 
 The other four views use the same iconography and spacing: consumption summaries
 show sources of estimates, refills keep their dated audit trail and correction
