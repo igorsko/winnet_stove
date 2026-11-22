@@ -73,7 +73,7 @@ panel.hass = {
 assert.match(panel.shadowRoot.innerHTML, /WiNET Stove/);
 assert.match(panel.shadowRoot.innerHTML, /data-tab="consumption"/);
 assert.match(panel.shadowRoot.innerHTML, /data-tab="maintenance"/);
-assert.match(panel.shadowRoot.innerHTML, /Running/);
+assert.match(panel.shadowRoot.innerHTML, /Heating active/);
 assert.doesNotMatch(panel.shadowRoot.innerHTML, /192\\.168\\.2\\.140/);
 assert.match(panel.shadowRoot.innerHTML, /Lovelace dashboard/);
 assert.match(panel.shadowRoot.innerHTML, /class="power-action power-stop"/);
@@ -115,7 +115,7 @@ panel._activeTab = "control";
 panel._last = "";
 panel.render();
 assert.match(panel.shadowRoot.innerHTML, /Controllo/);
-assert.match(panel.shadowRoot.innerHTML, /In funzione/);
+assert.match(panel.shadowRoot.innerHTML, /Riscaldamento attivo/);
 assert.match(panel.shadowRoot.innerHTML, /Temperatura ambiente/);
 assert.match(panel.shadowRoot.innerHTML, /Spegni stufa/);
 assert.match(panel.shadowRoot.innerHTML, /Disattiva Crono/);
