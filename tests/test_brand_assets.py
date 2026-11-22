@@ -49,9 +49,9 @@ class BrandAssetsTest(unittest.TestCase):
 
     def test_release_version_is_synchronized(self):
         manifest = json.loads((PACKAGE / "manifest.json").read_text())
-        self.assertEqual(manifest["version"], "1.3.1")
+        self.assertEqual(len(manifest["version"].split(".")), 3)
         version_source = (PACKAGE / "manifest_version.py").read_text()
-        self.assertIn('VERSION = "1.3.1"', version_source)
+        self.assertIn(f'VERSION = "{manifest["version"]}"', version_source)
 
 
 if __name__ == "__main__":

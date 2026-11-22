@@ -57,6 +57,20 @@ When Home Assistant Recorder is enabled and the entities are not excluded, open 
 
 State mapping varies with firmware: active cycles currently include codes 2, 3, 4, 5, 8, 9, while 1, 6, 7 are treated as idle/off and 0 as unknown. Validate the physical mapping on your stove before relying on it for reports. These readings must not be used as safety interlocks.
 
+## Crono scheduling control
+
+The dedicated Control tab exposes an **Enable/Disable Crono** action whenever
+the existing Home Assistant `crono_switch` is available. It uses the already
+implemented switch entity and its verified local commands, asks for
+confirmation, and is disabled when the switch state is unavailable. It toggles
+the stove's previously configured weekly schedule; this panel does not edit
+individual schedule times.
+
+**Temperature setpoint, burner power and room fan speed remain read-only**
+until register mapping, encoding and safe limits are verified on the tested
+Thermorossi Slimquadro 9 Evo. Cloud-app controls do not prove the equivalent
+local write register numbers. No speculative controller writes are included.
+
 ## Responsive visual controls
 
 Since v1.3.0 the dedicated WiNET panel uses light, dependency-free inline vector icons.

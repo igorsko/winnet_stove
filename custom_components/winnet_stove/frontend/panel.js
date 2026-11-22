@@ -27,6 +27,14 @@ const WINET_LABELS = {
     "wifi": "Wi-Fi signal",
     "alarm": "Alarms",
     "schedule": "Schedule",
+    "cronoTitle": "Weekly schedule (Crono)",
+    "cronoOn": "Enabled",
+    "cronoOff": "Disabled",
+    "cronoEnable": "Enable Crono",
+    "cronoDisable": "Disable Crono",
+    "cronoConfirmOn": "Enable the stove’s saved weekly program?",
+    "cronoConfirmOff": "Disable the stove’s weekly program?",
+    "cronoError": "Could not change the Crono schedule",
     "on": "Turn on stove",
     "offButton": "Turn off stove",
     "confirmOn": "Confirm starting the stove?",
@@ -144,6 +152,14 @@ const WINET_LABELS = {
     "wifi": "Segnale Wi-Fi",
     "alarm": "Allarmi",
     "schedule": "Programmazione",
+    "cronoTitle": "Programmazione oraria (Crono)",
+    "cronoOn": "Attiva",
+    "cronoOff": "Disattivata",
+    "cronoEnable": "Attiva Crono",
+    "cronoDisable": "Disattiva Crono",
+    "cronoConfirmOn": "Attivare il programma settimanale già salvato sulla stufa?",
+    "cronoConfirmOff": "Disattivare la programmazione oraria della stufa?",
+    "cronoError": "Impossibile modificare la programmazione Crono",
     "on": "Accendi stufa",
     "offButton": "Spegni stufa",
     "confirmOn": "Confermi l'accensione della stufa?",
@@ -364,6 +380,10 @@ class WinetStovePanel extends HTMLElement {
       const todayRunning = m.insights_today_hours
         ? this.duration(this._hass.states?.[m.insights_today_hours]?.state)
         : "—";
+      const cronoId = m.crono_switch;
+      const cronoState = cronoId ? this._hass.states?.[cronoId]?.state : null;
+      const cronoAvailable = cronoState === "on" || cronoState === "off";
+      const cronoEnabled = cronoState === "on";
       const canCommand = Boolean(climate) && ["heat","off"].includes(mode);
       const buttons = climate ? `
         <button class="power-action ${isOn ? "power-stop" : "power-start"}"
@@ -523,6 +543,18 @@ class WinetStovePanel extends HTMLElement {
                 <div><strong>${todayRunning}</strong><span>${this.tr("todayHours")}</span></div>
               </div>
             </div>
+            ${cronoId ? `<div class="crono-control">
+              <div class="crono-description">${this.icon("clock")}
+                <div><strong>${this.tr("cronoTitle")}</strong>
+                  <span>${cronoAvailable ? this.tr(cronoEnabled ? "cronoOn" : "cronoOff") : this.tr("notAvailable")}</span>
+                </div>
+              </div>
+              <button class="secondary crono-button" type="button"
+                data-crono="${this.escape(cronoId)}" data-crono-action="${cronoEnabled ? "turn_off" : "turn_on"}"
+                ${cronoAvailable ? "" : "disabled"}>
+                ${this.tr(cronoEnabled ? "cronoDisable" : "cronoEnable")}
+              </button>
+            </div>` : ""}
             <div class="health-strip">
               <div class="${alarmOk ? "ok" : "attention"}">
                 ${this.icon(alarmOk ? "shield" : "alert")}<span>${alarmText}</span>
@@ -532,7 +564,7 @@ class WinetStovePanel extends HTMLElement {
             <details class="more-info"><summary>${this.icon("sliders")}${this.tr("technical")}</summary>
               <div class="technical-rows">
                 ${m.state ? `<div><span>${this.tr("state")}</span><strong>${this.format(m.state)}</strong></div>` : ""}
-                ${m.crono ? `<div><span>${this.tr("schedule")}</span><strong>${this.format(m.crono)}</strong></div>` : ""}
+                ${m.crono && !cronoId ? `<div><span>${this.tr("schedule")}</span><strong>${this.format(m.crono)}</strong></div>` : ""}
                 ${m.rssi ? `<div><span>${this.tr("wifi")}</span><strong>${rssiValue}</strong></div>` : ""}
               </div>
             </details>
@@ -675,6 +707,16 @@ class WinetStovePanel extends HTMLElement {
         .support-reading div {min-width:0;display:flex;flex-direction:column;gap:3px;}
         .support-reading strong {font-size:23px;font-variant-numeric:tabular-nums;}
         .support-reading span:last-child {color:var(--secondary-text-color);font-size:13px;}
+        .crono-control {display:flex;align-items:center;justify-content:space-between;gap:16px;
+          border:1px solid var(--divider-color);border-radius:14px;padding:14px 16px;margin-top:16px;}
+        .crono-description {display:flex;align-items:center;gap:12px;}
+        .crono-description>.ico {color:var(--primary-color);width:24px;height:24px;}
+        .crono-description>div {display:flex;flex-direction:column;gap:4px;}
+        .crono-description strong {font-size:14px;}
+        .crono-description span {color:var(--secondary-text-color);font-size:12px;}
+        .crono-button {white-space:nowrap;}
+        @media(max-width:480px){.crono-control{flex-wrap:wrap;}
+          .crono-control button {width:100%;}}
         .health-strip {display:flex;align-items:center;justify-content:space-between;
           gap:15px;flex-wrap:wrap;padding:18px 4px 0;color:var(--secondary-text-color);}
         .health-strip>div {display:flex;align-items:center;gap:8px;font-size:13px;}
@@ -983,6 +1025,24 @@ class WinetStovePanel extends HTMLElement {
             });
           } catch (error) {
             this._hass?.showToast?.({ message: "Cannot log the pellet bag" });
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
+      this.shadowRoot.querySelectorAll("button[data-crono]").forEach(button => {
+        button.addEventListener("click", async () => {
+          if (button.disabled) return;
+          const action = button.dataset.cronoAction;
+          if (action !== "turn_on" && action !== "turn_off") return;
+          if (!window.confirm(this.tr(action === "turn_on" ? "cronoConfirmOn" : "cronoConfirmOff"))) return;
+          button.disabled = true;
+          try {
+            await this._hass.callService("switch", action, {
+              entity_id: button.dataset.crono,
+            });
+          } catch (error) {
+            this._hass?.showToast?.({message: this.tr("cronoError")});
           } finally {
             button.disabled = false;
           }
