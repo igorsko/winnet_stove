@@ -18,17 +18,22 @@ class CapturedControlsTest(unittest.TestCase):
         self.assertIsNone(controls.read_target({}))
         self.assertEqual(controls.encode_target(21), 156)
         self.assertEqual(controls.encode_target(21.5), 158)
+        self.assertEqual(controls.encode_target(15.0), 132)
+        self.assertEqual(controls.encode_target(30.0), 192)
+        self.assertEqual(controls.encode_target(22.0), 160)
 
-    def test_reject_inferred_or_invalid_setpoints(self):
-        for value in (20, 22, 21.25, float("nan"), float("inf"), "", None):
+    def test_reject_out_of_range_or_invalid_setpoints(self):
+        for value in (14.5, 30.5, 21.25, float("nan"), float("inf"), "", None):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     controls.encode_target(value)
 
-    def test_levels_are_capture_limited(self):
+    def test_levels_are_documented_and_bounded(self):
         self.assertEqual(controls.encode_level("1"), 1)
         self.assertEqual(controls.encode_level("2"), 2)
-        for value in (0, 3, 4, 5, "1.5", True, None):
+        for level in range(1, 6):
+            self.assertEqual(controls.encode_level(str(level)), level)
+        for value in (0, 6, "1.5", True, None):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     controls.encode_level(value)

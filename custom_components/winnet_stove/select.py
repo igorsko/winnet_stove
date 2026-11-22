@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Capture-limited local controls, separate from read-only stove sensors."""
+"""Local user-facing stove level controls, separate from read-only sensors."""
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
@@ -23,10 +23,10 @@ async def async_setup_entry(
 
 
 class WinetPilotLevel(CoordinatorEntity, SelectEntity):
-    """Only expose the two levels positively captured on this controller."""
+    """Expose five combustion and fan levels; verify untested levels on hardware."""
 
     _attr_has_entity_name = True
-    _attr_options = ["1", "2"]
+    _attr_options = ["1", "2", "3", "4", "5"]
 
     def __init__(self, coordinator, api, entry, kind):
         super().__init__(coordinator)
@@ -49,7 +49,7 @@ class WinetPilotLevel(CoordinatorEntity, SelectEntity):
         if not self.available:
             return None
         level = self.coordinator.data["registers"].get(self._register)
-        return str(level) if level in (1, 2) else None
+        return str(level) if level in (1, 2, 3, 4, 5) else None
 
     async def async_select_option(self, option: str) -> None:
         try:

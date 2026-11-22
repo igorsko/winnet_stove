@@ -36,7 +36,7 @@ const WINET_LABELS = {
     "cronoConfirmOff": "Disable the stove’s weekly program?",
     "cronoError": "Could not change the Crono schedule",
     "pilot": "Experimental local controls",
-    "pilotNote": "Only settings observed in the capture are enabled. Verify on the stove.",
+    "pilotNote": "Expanded pilot: levels 1–5, setpoint 15–30 °C. Verify new values on your stove.",
     "pilotTarget": "Target temperature",
     "pilotPower": "Burner power",
     "pilotFan": "Air fan",
@@ -167,7 +167,7 @@ const WINET_LABELS = {
     "cronoConfirmOff": "Disattivare la programmazione oraria della stufa?",
     "cronoError": "Impossibile modificare la programmazione Crono",
     "pilot": "Comandi locali sperimentali",
-    "pilotNote": "Sono abilitati solo i valori osservati nella cattura. Verifica sulla stufa.",
+    "pilotNote": "Prova estesa: livelli 1–5 e temperatura 15–30 °C. Verifica i nuovi valori sulla stufa.",
     "pilotTarget": "Temperatura obiettivo",
     "pilotPower": "Potenza della stufa",
     "pilotFan": "Ventola aria",
@@ -402,25 +402,32 @@ class WinetStovePanel extends HTMLElement {
       const pilotControls = [
         [this.tr("pilotPower"), pilotPowerId],
         [this.tr("pilotFan"), pilotFanId],
-      ].filter(([_,id]) => Boolean(id)).map(([label,id]) => {
-        const value = this._hass.states?.[id]?.state;
-        const valid = value === "1" || value === "2";
+      ].filter(([_, id]) => Boolean(id)).map(([label, id]) => {
+        const value = Number(this._hass.states?.[id]?.state);
+        const valid = Number.isInteger(value) && value >= 1 && value <= 5;
         return `<div class="pilot-row"><label>${this.escape(label)}</label>
-          <select data-pilot-select="${this.escape(id)}" aria-label="${this.escape(label)}"
-            ${valid ? "" : "disabled"}>
-            <option value="" ${valid ? "" : "selected"} disabled>—</option>
-            <option value="1" ${value === "1" ? "selected" : ""}>1</option>
-            <option value="2" ${value === "2" ? "selected" : ""}>2</option>
-          </select></div>`;
+          <div class="pilot-stepper">
+            <button type="button" class="secondary" data-pilot-step="${this.escape(id)}"
+              data-pilot-value="${value - 1}" aria-label="${this.escape(label)}: −"
+              ${!valid || value <= 1 ? "disabled" : ""}>−</button>
+            <output aria-live="polite">${valid ? value : "—"}</output>
+            <button type="button" class="secondary" data-pilot-step="${this.escape(id)}"
+              data-pilot-value="${value + 1}" aria-label="${this.escape(label)}: +"
+              ${!valid || value >= 5 ? "disabled" : ""}>+</button>
+          </div></div>`;
       }).join("");
-      const pilotTarget = climate && current && Number.isFinite(targetValue)
-        ? `<div class="pilot-row"><label>${this.tr("pilotTarget")}:
-            <strong>${this.escape(targetValue)} °C</strong></label>
-            <div class="pilot-buttons">${[21,21.5].map(value =>
-              `<button class="secondary" type="button" data-pilot-temp="${value}"
-                 data-pilot-climate="${this.escape(climate)}"
-                 ${targetValue === value || mode === "unavailable" || mode === "unknown" ? "disabled" : ""}>
-                 ${value} °C</button>`).join("")}</div></div>`
+      const validTarget = Number.isFinite(targetValue) && targetValue >= 15 && targetValue <= 30;
+      const pilotTarget = climate && current && validTarget
+        ? `<div class="pilot-row"><label>${this.tr("pilotTarget")}</label>
+          <div class="pilot-stepper">
+            <button type="button" class="secondary" data-pilot-temp="${targetValue - 0.5}"
+              data-pilot-climate="${this.escape(climate)}" aria-label="${this.tr("pilotTarget")}: −"
+              ${targetValue <= 15 ? "disabled" : ""}>−</button>
+            <output aria-live="polite">${this.escape(targetValue)} °C</output>
+            <button type="button" class="secondary" data-pilot-temp="${targetValue + 0.5}"
+              data-pilot-climate="${this.escape(climate)}" aria-label="${this.tr("pilotTarget")}: +"
+              ${targetValue >= 30 ? "disabled" : ""}>+</button>
+          </div></div>`
         : "";
       const canCommand = Boolean(climate) && ["heat","off"].includes(mode);
       const buttons = climate ? `
@@ -760,6 +767,9 @@ class WinetStovePanel extends HTMLElement {
         .pilot-row label {font-size:14px;}
         .pilot-buttons {display:flex;gap:6px;}
         .pilot-buttons button {padding:9px 12px;}
+        .pilot-stepper {display:flex;align-items:center;gap:6px;}
+        .pilot-stepper output {min-width:64px;text-align:center;font-weight:650;font-variant-numeric:tabular-nums;}
+        .pilot-stepper button {min-width:40px;min-height:40px;padding:6px 10px;font-size:20px;line-height:1;}
         .pilot-row select {background:var(--secondary-background-color);
           color:var(--primary-text-color);border:1px solid var(--divider-color);
           border-radius:9px;font:inherit;min-width:76px;padding:8px;}
@@ -1092,7 +1102,7 @@ class WinetStovePanel extends HTMLElement {
         button.addEventListener("click", async () => {
           if (button.disabled) return;
           const value = Number(button.dataset.pilotTemp);
-          if (![21, 21.5].includes(value)) return;
+          if (!Number.isFinite(value) || value < 15 || value > 30 || !Number.isInteger(value * 2)) return;
           button.disabled = true;
           try {
             await this._hass.callService("climate", "set_temperature", {
@@ -1104,17 +1114,21 @@ class WinetStovePanel extends HTMLElement {
           }
         });
       });
-      this.shadowRoot.querySelectorAll("select[data-pilot-select]").forEach(select => {
-        select.addEventListener("change", async () => {
-          if (select.disabled || !["1", "2"].includes(select.value)) return;
-          select.disabled = true;
+      this.shadowRoot.querySelectorAll("button[data-pilot-step]").forEach(button => {
+        button.addEventListener("click", async () => {
+          if (button.disabled) return;
+          const level = Number(button.dataset.pilotValue);
+          if (!Number.isInteger(level) || level < 1 || level > 5) return;
+          const id = button.dataset.pilotStep;
+          const group = button.closest(".pilot-stepper");
+          group?.querySelectorAll("button").forEach(b => { b.disabled = true; });
           try {
             await this._hass.callService("select", "select_option", {
-              entity_id: select.dataset.pilotSelect, option: select.value,
+              entity_id: id, option: String(level),
             });
           } catch (_) {
             this._hass?.showToast?.({message: this.tr("pilotError")});
-            select.disabled = false;
+            group?.querySelectorAll("button").forEach(b => { b.disabled = false; });
           }
         });
       });

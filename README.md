@@ -290,3 +290,21 @@ editable legacy Lovelace view, which is intentionally not overwritten.
 
 The manifest version and `manifest_version.py` version must be kept in sync
 when publishing future releases.
+
+
+### Experimental expanded controls (pending stove verification)
+
+The experimental branch now supports burner power 1–5, room fan levels 1–5,
+and the ambient setpoint 15–30 °C in 0.5 °C increments. The expanded setpoint
+is intentionally **narrower** than the 5–40 °C range described by a separate
+WiNET integration (Gladys Assistant). The Thermorossi Slimquadro 9 EVO manual
+lists five combustion levels and six ventilation levels; only five fan levels
+are currently exposed in this pilot. The register encoding is extrapolated
+from the locally tested 21/21.5 °C and levels 1/2. All other values must be
+verified in attended hardware tests. The LEVEL menu in the official manual
+controls the **smoke extractor**, not the room fan: this integration does not
+modify the smoke extractor or technical combustion parameters.
+
+Reference documentation (retrieved 2026-11-22):
+- https://www.thermorossi.com/upl/Manuale%20SlimQuadro%209%20EVO.pdf
+- https://gladysassistant.com/docs/integrations/external/thermorossi-winet/
