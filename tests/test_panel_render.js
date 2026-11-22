@@ -40,6 +40,7 @@ panel.panel = {
       entities: {
         climate: "climate.test",
         state: "sensor.test_state",
+        crono_switch: "switch.test_crono",
         pellet_refill_log: "sensor.test_refill_log",
         insights_today_cost: "sensor.today_cost",
       },
@@ -53,6 +54,7 @@ panel.hass = {
       attributes: { current_temperature: 21 },
     },
     "sensor.test_state": { state: "In Funzione", attributes: {} },
+    "switch.test_crono": { state: "on", attributes: {} },
     "sensor.today_cost": { state: "2.5", attributes: { unit_of_measurement: "€" } },
     "sensor.test_refill_log": {
       state: "1",
@@ -72,6 +74,10 @@ assert.doesNotMatch(panel.shadowRoot.innerHTML, /192\\.168\\.2\\.140/);
 assert.match(panel.shadowRoot.innerHTML, /Lovelace dashboard/);
 assert.match(panel.shadowRoot.innerHTML, /class="power-action power-stop"/);
 assert.match(panel.shadowRoot.innerHTML, /class="control-summary"/);
+assert.match(panel.shadowRoot.innerHTML, /class="crono-control"/);
+assert.match(panel.shadowRoot.innerHTML, /data-crono="switch.test_crono"/);
+assert.match(panel.shadowRoot.innerHTML, /data-crono-action="turn_off"/);
+assert.match(panel.shadowRoot.innerHTML, /Disable Crono/);
 assert.match(panel.shadowRoot.innerHTML, /class="health-strip"/);
 assert.match(panel.shadowRoot.innerHTML, /<svg class="ico"/);
 assert.equal((panel.shadowRoot.innerHTML.match(/data-climate=/g) || []).length, 1,
@@ -99,6 +105,7 @@ assert.match(panel.shadowRoot.innerHTML, /Controllo/);
 assert.match(panel.shadowRoot.innerHTML, /In funzione/);
 assert.match(panel.shadowRoot.innerHTML, /Temperatura ambiente/);
 assert.match(panel.shadowRoot.innerHTML, /Spegni stufa/);
+assert.match(panel.shadowRoot.innerHTML, /Disattiva Crono/);
 assert.match(panel.shadowRoot.innerHTML, /Dettagli tecnici/);
 panel._activeTab = "consumption";
 panel._last = "";
