@@ -40,6 +40,18 @@ class RecoveryTests(unittest.TestCase):
         self.assertIsNone(module.recover_snapshot(
             self.event, [(self.at, self.values)], 70))
 
+    def test_missing_runtime_recovery(self):
+        event = {**self.event, "runtime_h": None}
+        self.assertEqual(module.recover_runtime(
+            event, [(self.at - timedelta(seconds=5), "2.345")], 70, 19), 2.345)
+        for value in ("unknown", "unavailable", "nan", "-1", "20"):
+            self.assertIsNone(module.recover_runtime(
+                event, [(self.at, value)], 70, 19))
+        self.assertIsNone(module.recover_runtime(
+            event, [(self.at - timedelta(seconds=71), "2")], 70, 19))
+        self.assertIsNone(module.recover_runtime(
+            self.event, [(self.at, "2")], 70, 19))
+
     def test_rounding(self):
         result = module.recover_snapshot(
             self.event, [(self.at, {"1": 4.01, "2": 6})], 70)
