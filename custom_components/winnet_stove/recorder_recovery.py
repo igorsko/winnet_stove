@@ -39,18 +39,48 @@ def recover_snapshot(event, samples, max_age):
     return None
 
 
-async def async_recover_refills(hass, entry_id, events, max_age):
-    """Read only Recorder, using the registry to identify the correct stove."""
+def recover_runtime(event, samples, max_age, current_hours):
+    """Return a recorded cumulative combustion reading near the refill."""
+    if event.get("runtime_h") is not None:
+        return None
+    try:
+        at = datetime.fromisoformat(event["at"].replace("Z", "+00:00"))
+        if at.tzinfo is None:
+            return None
+    except (KeyError, TypeError, ValueError):
+        return None
+    for stamp, value in sorted(samples, key=lambda item: item[0], reverse=True):
+        if not 0 <= (at - stamp).total_seconds() <= max_age:
+            continue
+        try:
+            hours = float(value)
+        except (TypeError, ValueError):
+            continue
+        if isfinite(hours) and 0 <= hours <= current_hours:
+            return hours
+    return None
+
+
+async def async_recover_refills(hass, entry_id, events, max_age, current_hours):
+    """Read per-device Recorder history, retaining independently valid fields."""
+    if "recorder" not in hass.config.components:
+        return {}
     from homeassistant.helpers import entity_registry as er
     from homeassistant.components.recorder import get_instance, history
 
-    entity_id = er.async_get(hass).async_get_entity_id(
+    registry = er.async_get(hass)
+    runtime_id = registry.async_get_entity_id(
+        "sensor", "winnet_stove", f"{entry_id}_usage_total"
+    )
+    power_id = registry.async_get_entity_id(
         "sensor", "winnet_stove", f"{entry_id}_insights_power_profile"
     )
-    if not entity_id or "recorder" not in hass.config.components:
+    entity_ids = [entity for entity in (runtime_id, power_id) if entity]
+    if not entity_ids:
         return {}
     candidates = [event for event in events if event.get("full_hopper") is True
-                  and event.get("power_seconds") is None][-31:]
+                  and (event.get("runtime_h") is None or
+                       event.get("power_seconds") is None)][-31:]
     recovered = {}
     for event in candidates:
         try:
@@ -63,16 +93,27 @@ async def async_recover_refills(hass, entry_id, events, max_age):
         def read_history():
             return history.get_significant_states(
                 hass, at - timedelta(seconds=max_age), at + timedelta(microseconds=1),
-                entity_ids=[entity_id], include_start_time_state=False,
+                entity_ids=entity_ids, include_start_time_state=False,
                 significant_changes_only=False, minimal_response=False,
                 no_attributes=False,
             )
 
         result = await get_instance(hass).async_add_executor_job(read_history)
-        samples = [(state.last_updated, state.attributes.get("power_hours"))
-                   for state in result.get(entity_id, [])
-                   if state.state not in ("unknown", "unavailable")]
-        snapshot = recover_snapshot(event, samples, max_age)
+        changes = {}
+        runtime = recover_runtime(
+            event, [(state.last_updated, state.state)
+                    for state in result.get(runtime_id, [])], max_age, current_hours
+        )
+        if runtime is not None:
+            changes.update(runtime_h=runtime, runtime_source="recorder")
+        snapshot = recover_snapshot(
+            {**event, **changes},
+            [(state.last_updated, state.attributes.get("power_hours"))
+             for state in result.get(power_id, [])
+             if state.state not in ("unknown", "unavailable")], max_age
+        )
         if snapshot is not None:
-            recovered[event["id"]] = snapshot
+            changes.update(power_seconds=snapshot, power_snapshot_source="recorder")
+        if changes:
+            recovered[event["id"]] = changes
     return recovered
