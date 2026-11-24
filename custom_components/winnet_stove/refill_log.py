@@ -61,6 +61,9 @@ def validate_events(value: object) -> list[dict]:
             "full_hopper": event.get("full_hopper") is True,
             "runtime_h": event.get("runtime_h") if isinstance(event.get("runtime_h"), (int, float)) and 0 <= event.get("runtime_h") <= 1e8 else None,
             "power_seconds": snapshot,
+            "power_snapshot_source": ("recorder" if snapshot is not None and
+                                      event.get("power_snapshot_source") == "recorder"
+                                      else None),
         })
         seen.add(event_id)
     return validated
