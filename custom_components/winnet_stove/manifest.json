@@ -1,6 +1,9 @@
 {
   "domain": "winnet_stove",
   "name": "WiNET Stove",
+  "after_dependencies": [
+    "recorder"
+  ],
   "codeowners": [
     "@igorsko"
   ],
