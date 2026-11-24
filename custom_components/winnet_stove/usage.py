@@ -156,6 +156,39 @@ class StoveUsage:
         except (TypeError, ValueError):
             _LOGGER.warning("Invalid stored WiNET Stove usage; resetting counters")
 
+    async def async_recover_history(self):
+        """Recover missing legacy snapshots without changing refill quantities."""
+        if not any(e.get("full_hopper") and e.get("power_seconds") is None
+                   for e in self.refills):
+            return
+        from .recorder_recovery import async_recover_refills
+        try:
+            recovered = await async_recover_refills(
+                self._hass, self._entry_id, self.refills, self._max_gap
+            )
+            if not recovered:
+                return
+            # Preserve original persisted accounting before changing any event.
+            backup = Store(self._hass, 1, f"{DOMAIN}_{self._entry_id}_pre_recorder_recovery")
+            if await backup.async_load() is None:
+                await backup.async_save(await self._store.async_load() or self._snapshot())
+            original = self.refills
+            self.refills = [
+                {**event, "power_seconds": recovered[event["id"]],
+                 "power_snapshot_source": "recorder"}
+                if event["id"] in recovered and event.get("power_seconds") is None
+                else event for event in original
+            ]
+            try:
+                await self._store.async_save(self._snapshot())
+            except Exception:
+                self.refills = original
+                raise
+            _LOGGER.info("Recovered %s WiNET refill power snapshots from Recorder",
+                         len(recovered))
+        except Exception:
+            _LOGGER.exception("Optional WiNET Recorder recovery failed; using existing data")
+
     def _snapshot(self):
         return {
             **self.pellet,
@@ -296,6 +329,9 @@ class StoveUsage:
         if profile_kg is not None and self.tracker.operating_seconds > 0:
             rate = profile_kg / (self.tracker.operating_seconds / 3600)
             source = profile_source
+        learned["recovered_snapshots"] = sum(
+            e.get("power_snapshot_source") == "recorder" for e in self.refills
+        )
         stats["calibration"] = learned
         stats["profile_rates"] = profile_rates if profile_kg is not None else {}
         stats["rate_source"] = source
