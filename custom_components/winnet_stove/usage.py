@@ -16,7 +16,7 @@ from .auto_refill import AutoRefillDetector
 from .refill_log import ledger_stats, remove_event, update_event, valid_kg, validate_events
 from .insights_logic import (MAINTENANCE_DEFAULTS, calibrated_rate, daily_estimates,
                              effective_rate, maintenance_remaining, valid_positive,
-                             profile_consumption)
+                             profile_consumption, learned_power_profile)
 from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
@@ -278,21 +278,33 @@ class StoveUsage:
         """Derived estimates, with explicit provenance of the kg/h rate."""
         stats = pellet_stats(self.tracker.operating_seconds, self.pellet)
         rate, source = effective_rate(self.pellet["rate_kg_h"], self.refills)
-        profile_kg = profile_consumption(self.working_by_power, self.power_rates)
+        learned = learned_power_profile(self.refills)
+        # A complete user-defined profile takes precedence, preserving existing
+        # behavior. In its absence, use learned per-power rates when every
+        # observed power level is identifiable from independent refill cycles.
+        profile_rates = self.power_rates
+        profile_source = "configured_power_profile"
         all_power_seconds = sum(self.working_by_power.values())
+        profile_kg = profile_consumption(self.working_by_power, profile_rates)
+        if profile_kg is None and learned["status"] == "learned":
+            profile_rates = learned["rates"]
+            profile_source = "learned_power_profile"
+            profile_kg = profile_consumption(self.working_by_power, profile_rates)
         # Never treat a partly observed power distribution as complete.
         if all_power_seconds < self.tracker.operating_seconds * 0.98:
             profile_kg = None
         if profile_kg is not None and self.tracker.operating_seconds > 0:
             rate = profile_kg / (self.tracker.operating_seconds / 3600)
-            source = "configured_power_profile"
+            source = profile_source
+        stats["calibration"] = learned
+        stats["profile_rates"] = profile_rates if profile_kg is not None else {}
         stats["rate_source"] = source
         stats["effective_rate_kg_h"] = round(rate, 4) if rate is not None else None
         if rate is not None:
             hours = self.tracker.operating_seconds / 3600
             weight = self.pellet["bag_weight_kg"]
             stats.update(
-                pellet_used=profile_kg if source == "configured_power_profile" else round(hours * rate, 3),
+                pellet_used=profile_kg if profile_kg is not None else round(hours * rate, 3),
                 estimated_bags=round(hours * rate / weight, 3),
                 bags_per_hour=round(rate / weight, 4),
                 hours_per_bag=round(weight / rate, 2),
@@ -311,10 +323,10 @@ class StoveUsage:
         source = stats["rate_source"]
         days = daily_estimates(self.working_by_day, rate,
                                self.pellet["bag_weight_kg"], self.price_per_bag)
-        if source == "configured_power_profile":
+        if source in ("configured_power_profile", "learned_power_profile"):
             for day in days:
                 power = self.working_by_day_power.get(day["date"], {})
-                estimated = profile_consumption(power, self.power_rates)
+                estimated = profile_consumption(power, stats["profile_rates"])
                 if sum(power.values()) < self.working_by_day.get(day["date"], 0) * 0.98:
                     estimated = None
                 day["estimated_kg"] = estimated
@@ -325,6 +337,7 @@ class StoveUsage:
                 )
         return {
             "days": days, "rate_source": source, "rate_kg_h": rate,
+            "calibration": stats["calibration"],
             "power_hours": {key: round(seconds / 3600, 2)
                             for key, seconds in self.working_by_power.items()},
         }
@@ -437,6 +450,10 @@ class StoveUsage:
         entry = {
             "id": str(uuid4()),
             "runtime_h": round(self.tracker.operating_seconds / 3600, 6),
+            # A snapshot is essential: past cumulative power totals cannot
+            # be reconstructed at previously saved refills.
+            "power_seconds": {str(level): self.working_by_power.get(str(level), 0)
+                              for level in range(1, 6)},
             "full_hopper": False,
             "at": datetime.now(timezone.utc).isoformat(),
             "kg": kg,

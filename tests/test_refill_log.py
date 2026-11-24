@@ -34,6 +34,17 @@ class RefillLogTests(unittest.TestCase):
         self.assertEqual(MODULE.ledger_stats(restored)["total_kg"], 15)
         self.assertEqual(MODULE.ledger_stats(restored)["automatic"], 1)
 
+    def test_power_snapshot_persists_and_invalid_snapshot_is_discarded(self):
+        original = event(source="manual")
+        original["runtime_h"] = 15.5
+        original["power_seconds"] = {"1": 3600, "2": 7200, "3": 0,
+                                      "4": 0, "5": 0}
+        restored = MODULE.validate_events([original])[0]
+        self.assertEqual(restored["power_seconds"]["1"], 3600)
+        self.assertEqual(restored["power_seconds"]["2"], 7200)
+        original["power_seconds"]["2"] = -1
+        self.assertIsNone(MODULE.validate_events([original])[0]["power_seconds"])
+
     def test_manual_correction_and_false_auto_positive(self):
         original = event(source="auto")
         updated = MODULE.update_event([original], original["id"], 7.5)

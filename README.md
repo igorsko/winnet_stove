@@ -202,10 +202,21 @@ The plugin supports these estimation paths:
    second full event / confirmed burning hours between them**. Missing unrecorded top-ups
    invalidate this calibration. Ordinary and automatically inferred refills are *not*
    marked as full by default.
-3. **Power-aware rates:** optionally configure kg/h for each reported raw power value
-   1–5. The plugin uses this profile **only if all observed power time has configured rates**;
-   otherwise it falls back to an interval-calibrated or user-average rate. Do not enter
-   arbitrary manufacturer estimates as measured facts.
+3. **Automatic power calibration:** each newly recorded refill saves a snapshot
+   of accumulated combustion seconds at levels 1–5. After at least two
+   *independent full-to-full intervals* with sufficient variation, the plugin
+   estimates per-power kg/h by solving the measured refill quantities against
+   the observed power hours. It rejects missing history, incomplete coverage,
+   non-identifiable levels and inconsistent refills; until identifiable, the
+   overall full-to-full average remains available. Previously recorded refills
+   without snapshots continue to support average kg/h but cannot retroactively
+   supply per-power measurements. The rate sensor exposes calibration status,
+   learned levels, number of valid cycles and residual error.
+4. **Manual power-aware rates:** optionally enter kg/h for each level 1–5.
+   A complete configured profile takes precedence over auto-learned rates.
+   Incomplete profiles fall back to the learned profile when identifiable,
+   otherwise to the full-to-full average or manual average. Do not treat
+   learned estimates as direct pellet measurements.
 
 The **estimated cost** uses the configured bag price, bag weight and estimated kg.
 Daily totals are retained for up to 400 local days from the time this feature is installed;

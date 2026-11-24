@@ -49,6 +49,65 @@ class InsightsTests(unittest.TestCase):
         entries[1]["runtime_h"] = 9
         self.assertIsNone(MODULE.calibrated_rate(entries))
 
+
+    def test_learn_power_rates_from_independent_full_cycles(self):
+        # Cumulative runtime and per-power seconds are captured at each full.
+        entries = [
+            {**refill(15, 0, True), "power_seconds": {"1": 0, "2": 0}},
+            {**refill(5, 10, True), "power_seconds": {"1": 36000, "2": 0}},
+            {**refill(12, 20, True), "power_seconds": {"1": 36000, "2": 36000}},
+        ]
+        learned = MODULE.learned_power_profile(entries)
+        self.assertEqual(learned["status"], "learned")
+        self.assertEqual(learned["cycles"], 2)
+        self.assertAlmostEqual(learned["rates"]["1"], 0.5)
+        self.assertAlmostEqual(learned["rates"]["2"], 1.2)
+        self.assertNotIn("3", learned["rates"])
+
+    def test_two_fulls_provide_average_but_not_power_split(self):
+        events = [
+            {**refill(15, 0, True), "power_seconds": {"1": 0, "2": 0}},
+            {**refill(15, 20, True),
+             "power_seconds": {"1": 36000, "2": 36000}},
+        ]
+        self.assertEqual(MODULE.calibrated_rate(events), 0.75)
+        self.assertEqual(MODULE.learned_power_profile(events)["status"],
+                         "collecting")
+
+    def test_no_fake_power_history_for_legacy_fulls(self):
+        events = [refill(15, 0, True), refill(15, 20, True)]
+        self.assertEqual(MODULE.calibrated_rate(events), 0.75)
+        self.assertEqual(MODULE.learned_power_profile(events)["cycles"], 0)
+
+    def test_reject_incomplete_power_coverage(self):
+        events = [
+            {**refill(15, 0, True), "power_seconds": {"1": 0}},
+            {**refill(10, 10, True), "power_seconds": {"1": 20000}},
+            {**refill(12, 20, True), "power_seconds": {"1": 40000}},
+        ]
+        self.assertEqual(MODULE.learned_power_profile(events)["cycles"], 0)
+
+    def test_reject_unidentifiable_power_levels(self):
+        events = [
+            {**refill(15, 0, True), "power_seconds": {"1": 0, "2": 0}},
+            {**refill(15, 10, True),
+             "power_seconds": {"1": 18000, "2": 18000}},
+            {**refill(15, 20, True),
+             "power_seconds": {"1": 36000, "2": 36000}},
+        ]
+        self.assertEqual(MODULE.learned_power_profile(events)["status"],
+                         "insufficient_variation")
+
+    def test_reject_very_inconsistent_cycle_mass(self):
+        events = [
+            {**refill(15, 0, True), "power_seconds": {"1": 0}},
+            {**refill(5, 10, True), "power_seconds": {"1": 36000}},
+            {**refill(20, 20, True), "power_seconds": {"1": 72000}},
+            {**refill(5, 30, True), "power_seconds": {"1": 108000}},
+        ]
+        self.assertEqual(MODULE.learned_power_profile(events)["status"],
+                         "inconsistent_refills")
+
     def test_maintenance_hours(self):
         self.assertEqual(MODULE.maintenance_remaining(30, 20, 12), 2)
         self.assertEqual(MODULE.maintenance_remaining(35, 20, 12), -3)

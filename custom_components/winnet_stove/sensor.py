@@ -605,7 +605,8 @@ class StoveInsightsSensor(SensorEntity):
         if self._kind == "effective_rate":
             stats = self._usage.pellet_statistics()
             return {"source": stats["rate_source"],
-                    "method": "estimated_not_metered"}
+                    "method": "estimated_not_metered",
+                    "calibration": stats["calibration"]}
         if self._kind.startswith("maintenance_"):
             return self._usage.maintenance_statistics()[
                 self._kind.removeprefix("maintenance_")
