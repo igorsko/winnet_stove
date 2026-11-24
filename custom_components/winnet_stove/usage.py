@@ -158,26 +158,29 @@ class StoveUsage:
 
     async def async_recover_history(self):
         """Recover missing legacy snapshots without changing refill quantities."""
-        if not any(e.get("full_hopper") and e.get("power_seconds") is None
+        if not any(e.get("full_hopper") and (e.get("runtime_h") is None or e.get("power_seconds") is None)
                    for e in self.refills):
             return
         from .recorder_recovery import async_recover_refills
         try:
             recovered = await async_recover_refills(
-                self._hass, self._entry_id, self.refills, self._max_gap
+                self._hass, self._entry_id, self.refills, self._max_gap,
+                self.tracker.operating_seconds / 3600
             )
             if not recovered:
                 return
             # Preserve original persisted accounting before changing any event.
-            backup = Store(self._hass, 1, f"{DOMAIN}_{self._entry_id}_pre_recorder_recovery")
+            backup = Store(self._hass, 1, f"{DOMAIN}_{self._entry_id}_pre_runtime_recovery")
             if await backup.async_load() is None:
                 await backup.async_save(await self._store.async_load() or self._snapshot())
             original = self.refills
             self.refills = [
-                {**event, "power_seconds": recovered[event["id"]],
-                 "power_snapshot_source": "recorder"}
-                if event["id"] in recovered and event.get("power_seconds") is None
-                else event for event in original
+                {**event, **{key: value for key, value in recovered.get(event["id"], {}).items()
+                             if (key == "runtime_h" and event.get("runtime_h") is None)
+                             or (key == "power_seconds" and event.get("power_seconds") is None)
+                             or (key == "runtime_source" and event.get("runtime_h") is None)
+                             or (key == "power_snapshot_source" and event.get("power_seconds") is None)}}
+                if event.get("full_hopper") else event for event in original
             ]
             try:
                 await self._store.async_save(self._snapshot())
@@ -186,6 +189,7 @@ class StoveUsage:
                 raise
             _LOGGER.info("Recovered %s WiNET refill power snapshots from Recorder",
                          len(recovered))
+            self._notify()
         except Exception:
             _LOGGER.exception("Optional WiNET Recorder recovery failed; using existing data")
 
@@ -332,6 +336,8 @@ class StoveUsage:
         learned["recovered_snapshots"] = sum(
             e.get("power_snapshot_source") == "recorder" for e in self.refills
         )
+        learned["full_refills"] = sum(e.get("full_hopper") is True for e in self.refills)
+        learned["missing_runtime"] = sum(e.get("full_hopper") is True and e.get("runtime_h") is None for e in self.refills)
         stats["calibration"] = learned
         stats["profile_rates"] = profile_rates if profile_kg is not None else {}
         stats["rate_source"] = source
@@ -537,6 +543,7 @@ class StoveUsage:
             corrected["stock_debit"] = True
         self._recount_refills()
         await self._store.async_save(self._snapshot())
+        await self.async_recover_history()
         self._notify()
 
     async def async_remove_refill(self, event_id):

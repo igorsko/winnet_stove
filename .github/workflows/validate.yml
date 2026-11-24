@@ -39,6 +39,9 @@ jobs:
           assert manifest["domain"] == root.name
           assert manifest["issue_tracker"] == "https://github.com/igorsko/winnet_stove/issues"
           assert manifest["version"]
+          import re
+          version = re.search(r'^VERSION = "([^"]+)"', (root / "manifest_version.py").read_text(), re.M)
+          assert version and version.group(1) == manifest["version"]
           json.loads(Path("hacs.json").read_text())
           strings = json.loads((root / "strings.json").read_text())
           assert "https://" not in strings["config"]["step"]["user"]["description"]
@@ -61,3 +64,37 @@ jobs:
         with:
           category: integration
           ignore: brands
+
+  release:
+    name: Publish validated version
+    needs: [python-syntax, hassfest, hacs]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: winnet-release-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish release if version is new
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(python -c 'import json; print(json.load(open("custom_components/winnet_stove/manifest.json"))["version"])')
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag="v$version"
+          git fetch origin main --tags
+          if [[ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]]; then
+            echo "Skipping obsolete main commit"
+            exit 0
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists"
+            exit 0
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            [[ "$(git rev-list -n 1 "$tag")" == "$GITHUB_SHA" ]] || { echo "Existing tag points to a different commit"; exit 1; }
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "WiNET Stove $version" --generate-notes
