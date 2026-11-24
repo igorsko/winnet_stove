@@ -42,6 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_config_entry_first_refresh()
         usage = StoveUsage(hass, entry.entry_id, interval)
         await usage.async_load()
+        await usage.async_recover_history()
         unsubscribe = coordinator.async_add_listener(lambda: usage.async_update(coordinator))
         usage.async_update(coordinator)
         hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
