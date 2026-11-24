@@ -133,6 +133,9 @@ const WINET_LABELS = {
     "learnedCycles": "Automatic power calibration: {count} full-to-full cycles",
     "learningCycles": "Collecting power data: {count} cycles; more independent cycles needed",
     "learningStart": "Power calibration: record full-to-full refill cycles",
+    "missingRuntime": "Confirmed full refills with missing combustion history: {count}. Recorder recovery requires retained history.",
+    "needFulls": "Confirm at least two refills to the same full level in Refills.",
+    "fullConfirmed": "Full level confirmed",
     "estimated": "Estimated",
     "measured": "Observed",
     "legacy": "Historical"
@@ -239,6 +242,9 @@ const WINET_LABELS = {
     "settingsHelp": "Tocca un valore per modificarlo. I parametri di consumo non cambiano il funzionamento della stufa.",
     "pelletGroup": "Pellet e prezzi",
     "calibrationGroup": "Calibrazione consumi",
+    "missingRuntime": "Pieni confermati senza ore di combustione: {count}. Il recupero richiede lo storico Recorder.",
+    "needFulls": "Conferma almeno due pieni allo stesso livello nella scheda Rifornimenti.",
+    "fullConfirmed": "Pieno confermato",
     "maintGroup": "Intervalli di manutenzione",
     "diagnosticsGroup": "Diagnostica e dati storici",
     "initialHours": "Ore iniziali stufa",
@@ -496,7 +502,7 @@ class WinetStovePanel extends HTMLElement {
           ? "—" : date.toLocaleString(this.locale === "it" ? "it-IT" : "en-GB");
         return `<div class="refill-row">
           <div><strong>${this.escape(event.kg)} kg</strong>
-            <small>${this.escape(label)} · ${this.escape(when)}</small></div>
+            <small>${this.escape(label)} · ${this.escape(when)}${event.full_hopper ? " · " + this.escape(this.tr("fullConfirmed")) : ""}</small></div>
           <div class="row-actions">
             <button class="secondary mini" data-refill-edit="${this.escape(event.id)}"
               data-entry="${this.escape(stove.entry_id)}"
@@ -550,7 +556,11 @@ class WinetStovePanel extends HTMLElement {
       const calibration = fullRateId
         ? this._hass.states?.[fullRateId]?.attributes?.calibration
         : null;
-      const calibrationText = calibration?.status === "learned"
+      const calibrationText = calibration?.missing_runtime > 0
+        ? this.tr("missingRuntime").replace("{count}", calibration.missing_runtime)
+        : calibration?.full_refills < 2
+          ? this.tr("needFulls")
+          : calibration?.status === "learned"
         ? this.tr("learnedCycles").replace("{count}", calibration.cycles)
         : calibration?.cycles > 0
           ? this.tr("learningCycles").replace("{count}", calibration.cycles)
