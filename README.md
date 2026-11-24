@@ -215,7 +215,11 @@ The plugin supports these estimation paths:
    are rounded historical estimates, not exact native snapshots. Missing or
    purged history is left untouched. Original accounting is backed up locally
    before the first successful recovery. The calibration attributes report the
-   number of recovered snapshots. The rate sensor exposes calibration status,
+   number of recovered snapshots.
+   Since 1.3.9, missing cumulative combustion hours can also be recovered from
+   the Total combustion hours sensor. Edit an older refill to confirm the same
+   full level; this triggers recovery again without adding a refill or changing
+   its date. The panel explains missing runtime or insufficient full confirmations. The rate sensor exposes calibration status,
    learned levels, number of valid cycles and residual error.
 4. **Manual power-aware rates:** optionally enter kg/h for each level 1–5.
    A complete configured profile takes precedence over auto-learned rates.
