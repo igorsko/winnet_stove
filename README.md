@@ -208,9 +208,14 @@ The plugin supports these estimation paths:
    estimates per-power kg/h by solving the measured refill quantities against
    the observed power hours. It rejects missing history, incomplete coverage,
    non-identifiable levels and inconsistent refills; until identifiable, the
-   overall full-to-full average remains available. Previously recorded refills
-   without snapshots continue to support average kg/h but cannot retroactively
-   supply per-power measurements. The rate sensor exposes calibration status,
+   overall full-to-full average remains available. Previously recorded refills without snapshots continue to support average kg/h.
+   Since 1.3.8, startup attempts to recover missing full-refill snapshots from
+   Recorder history of the existing Operating hours by power sensor. Only nearby
+   cumulative readings consistent with the saved runtime are accepted; readings
+   are rounded historical estimates, not exact native snapshots. Missing or
+   purged history is left untouched. Original accounting is backed up locally
+   before the first successful recovery. The calibration attributes report the
+   number of recovered snapshots. The rate sensor exposes calibration status,
    learned levels, number of valid cycles and residual error.
 4. **Manual power-aware rates:** optionally enter kg/h for each level 1–5.
    A complete configured profile takes precedence over auto-learned rates.
