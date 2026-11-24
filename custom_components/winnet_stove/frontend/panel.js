@@ -128,7 +128,11 @@ const WINET_LABELS = {
     "unconfigured": "Unconfigured",
     "sourceManual": "User-defined average",
     "sourceFull": "Calibrated from refills",
-    "sourcePower": "Calibrated per power level",
+    "sourcePower": "User-configured power profile",
+    "sourceLearned": "Power profile learned from refills",
+    "learnedCycles": "Automatic power calibration: {count} full-to-full cycles",
+    "learningCycles": "Collecting power data: {count} cycles; more independent cycles needed",
+    "learningStart": "Power calibration: record full-to-full refill cycles",
     "estimated": "Estimated",
     "measured": "Observed",
     "legacy": "Historical"
@@ -257,7 +261,11 @@ const WINET_LABELS = {
     "unconfigured": "Non configurato",
     "sourceManual": "Media impostata",
     "sourceFull": "Calibrato tramite rifornimenti",
-    "sourcePower": "Calibrato per livello di potenza",
+    "sourcePower": "Profilo di potenza impostato",
+    "sourceLearned": "Profilo di potenza appreso dai pieni",
+    "learnedCycles": "Calibrazione automatica potenze: {count} cicli tra pieni",
+    "learningCycles": "Calibrazione potenze: {count} cicli; servono altri cicli con potenze differenti",
+    "learningStart": "Calibrazione potenze: registra altri pieni allo stesso livello",
     "estimated": "Stimato",
     "measured": "Rilevato",
     "legacy": "Storico"
@@ -336,6 +344,7 @@ class WinetStovePanel extends HTMLElement {
       full_hopper_calibration: this.tr("sourceFull"),
       user_average: this.tr("sourceManual"),
       configured_power_profile: this.tr("sourcePower"),
+      learned_power_profile: this.tr("sourceLearned"),
       unconfigured: this.tr("unconfigured"),
     })[source] || this.tr("unconfigured");
   }
@@ -538,6 +547,14 @@ class WinetStovePanel extends HTMLElement {
       const rateSource = fullRateId
         ? this._hass.states?.[fullRateId]?.attributes?.source
         : null;
+      const calibration = fullRateId
+        ? this._hass.states?.[fullRateId]?.attributes?.calibration
+        : null;
+      const calibrationText = calibration?.status === "learned"
+        ? this.tr("learnedCycles").replace("{count}", calibration.cycles)
+        : calibration?.cycles > 0
+          ? this.tr("learningCycles").replace("{count}", calibration.cycles)
+          : this.tr("learningStart");
       const dailyHistory = m.insights_month_cost
         ? this._hass.states?.[m.insights_month_cost]?.attributes?.daily_history || []
         : [];
@@ -632,6 +649,7 @@ class WinetStovePanel extends HTMLElement {
               </div>` : `
               <p class="hint">${this.tr("rate")}: ${this.format(m.insights_effective_rate)}
                 · ${this.sourceLabel(rateSource)}</p>`}
+            <p class="hint">${this.escape(calibrationText)}</p>
             <h4>${this.tr("lastDays")}</h4>
             ${dailyRows || `<p class="hint">${this.tr("noDaily")}</p>`}
             <details class="more-info"><summary>${this.icon("sliders")}${this.tr("technical")}</summary>

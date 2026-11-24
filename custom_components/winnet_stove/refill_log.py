@@ -42,12 +42,25 @@ def validate_events(value: object) -> list[dict]:
             bag_weight = valid_kg(event.get("bag_weight_kg", 15.0))
         except (KeyError, ValueError, TypeError):
             continue
+        snapshot = event.get("power_seconds")
+        if isinstance(snapshot, dict) and all(
+            isinstance(snapshot.get(str(i), 0), (int, float))
+            and not isinstance(snapshot.get(str(i), 0), bool)
+            and isfinite(snapshot.get(str(i), 0))
+            and 0 <= snapshot.get(str(i), 0) <= 1e12
+            for i in range(1, 6)
+        ):
+            snapshot = {str(i): snapshot.get(str(i), 0)
+                        for i in range(1, 6)}
+        else:
+            snapshot = None
         debit = event.get("stock_debit", False) is True
         validated.append({
             "id": event_id, "at": stamp, "kg": kg,
             "bag_weight_kg": bag_weight, "stock_debit": debit, "source": source,
             "full_hopper": event.get("full_hopper") is True,
             "runtime_h": event.get("runtime_h") if isinstance(event.get("runtime_h"), (int, float)) and 0 <= event.get("runtime_h") <= 1e8 else None,
+            "power_seconds": snapshot,
         })
         seen.add(event_id)
     return validated
